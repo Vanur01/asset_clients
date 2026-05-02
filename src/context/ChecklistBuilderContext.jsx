@@ -235,7 +235,7 @@ export const ChecklistBuilderProvider = ({ children }) => {
         }
 
         const response = await axios.post(
-          "http://localhost:9001/api/v1/checklist/import-excel",
+          "https://assset-management-backend-4.onrender.com/api/v1/checklist/import-excel",
           formData,
           {
             headers: {

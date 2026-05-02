@@ -308,7 +308,7 @@ export default function AssetView() {
     if (!asset?.assetImages?.length) return null;
     const primary = asset.assetImages.find((img) => img.isPrimary) || asset.assetImages[0];
     if (!primary?.name) return null;
-    return `http://localhost:9001/uploads/assets/${primary.name}`;
+    return `https://assset-management-backend-4.onrender.com/uploads/assets/${primary.name}`;
   };
 
   const getLastInspection = () => {

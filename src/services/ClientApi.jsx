@@ -1,7 +1,7 @@
 // services/ClientApi.js
 import axios from "axios";
 
-const API_BASE_URL = "http://localhost:9001/api/v1/user";
+const API_BASE_URL = "https://assset-management-backend-4.onrender.com/api/v1/user";
 
 // Helper to get auth headers
 const getAuthHeaders = (token) => ({
@@ -121,8 +121,8 @@ export const deleteClient = async (token, clientId, permanent = false) => {
 // Renew client membership
 export const renewClientMembership = async (token, clientId, extendDays) => {
   try {
-    const response = await axios.post(
-      `${API_BASE_URL}/clients/${clientId}/renew`,
+    const response = await axios.put(
+      `${API_BASE_URL}/clients/${clientId}`,
       { extendDays },
       {
         headers: getAuthHeaders(token),

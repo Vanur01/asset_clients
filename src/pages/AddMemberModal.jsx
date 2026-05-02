@@ -155,7 +155,7 @@ const AddMemberModal = ({ open, onClose, onSubmit, loading }) => {
       <form onSubmit={handleSubmit}>
         <DialogContent sx={{ px: { xs: 2, sm: 2.5 }, py: 2 }}>
           <Grid container spacing={1.5}>
-            <Grid item xs={12} sm={6}>
+            <Grid item xs={12} sm={6} sx={{width:"250px"}}>
               <TextField
                 fullWidth
                 name="firstName"
@@ -168,15 +168,15 @@ const AddMemberModal = ({ open, onClose, onSubmit, loading }) => {
                 InputProps={{
                   startAdornment: (
                     <InputAdornment position="start">
-                      <PersonIcon sx={{ fontSize: '0.8rem' }} />
+                      <PersonIcon sx={{ fontSize: '0.9rem' }} />
                     </InputAdornment>
                   ),
                 }}
-                InputLabelProps={{ sx: { fontSize: '0.7rem' } }}
-                sx={{ '& .MuiInputBase-input': { fontSize: '0.7rem' } }}
+                InputLabelProps={{ sx: { fontSize: '0.9rem' } }}
+                sx={{ '& .MuiInputBase-input': { fontSize: '0.9rem' } }}
               />
             </Grid>
-            <Grid item xs={12} sm={6}>
+            <Grid item xs={12} sm={6} sx={{width:"250px"}}>
               <TextField
                 fullWidth
                 name="lastName"
@@ -186,11 +186,11 @@ const AddMemberModal = ({ open, onClose, onSubmit, loading }) => {
                 error={!!errors.lastName}
                 helperText={errors.lastName}
                 size="small"
-                InputLabelProps={{ sx: { fontSize: '0.7rem' } }}
-                sx={{ '& .MuiInputBase-input': { fontSize: '0.7rem' } }}
+                InputLabelProps={{ sx: { fontSize: '0.9rem' } }}
+                sx={{ '& .MuiInputBase-input': { fontSize: '0.9rem' } }}
               />
             </Grid>
-            <Grid item xs={12} sm={6}>
+            <Grid item xs={12} sm={6} sx={{width:"250px"}}>
               <TextField
                 fullWidth
                 name="email"
@@ -204,15 +204,15 @@ const AddMemberModal = ({ open, onClose, onSubmit, loading }) => {
                 InputProps={{
                   startAdornment: (
                     <InputAdornment position="start">
-                      <EmailIcon sx={{ fontSize: '0.8rem' }} />
+                      <EmailIcon sx={{ fontSize: '0.9rem' }} />
                     </InputAdornment>
                   ),
                 }}
-                InputLabelProps={{ sx: { fontSize: '0.7rem' } }}
-                sx={{ '& .MuiInputBase-input': { fontSize: '0.7rem' } }}
+                InputLabelProps={{ sx: { fontSize: '0.9rem' } }}
+                sx={{ '& .MuiInputBase-input': { fontSize: '0.9rem' } }}
               />
             </Grid>
-            <Grid item xs={12} sm={6}>
+            <Grid item xs={12} sm={6} sx={{width:"250px"}}>
               <TextField
                 fullWidth
                 name="phone"
@@ -224,15 +224,15 @@ const AddMemberModal = ({ open, onClose, onSubmit, loading }) => {
                 InputProps={{
                   startAdornment: (
                     <InputAdornment position="start">
-                      <PhoneIcon sx={{ fontSize: '0.8rem' }} />
+                      <PhoneIcon sx={{ fontSize: '0.9rem' }} />
                     </InputAdornment>
                   ),
                 }}
-                InputLabelProps={{ sx: { fontSize: '0.7rem' } }}
-                sx={{ '& .MuiInputBase-input': { fontSize: '0.7rem' } }}
+                InputLabelProps={{ sx: { fontSize: '0.9rem' } }}
+                sx={{ '& .MuiInputBase-input': { fontSize: '0.9rem' } }}
               />
             </Grid>
-            <Grid item xs={12} sm={6}>
+            <Grid item xs={12} sm={6} sx={{width:"250px"}}>
               <TextField
                 fullWidth
                 select
@@ -244,21 +244,21 @@ const AddMemberModal = ({ open, onClose, onSubmit, loading }) => {
                 InputProps={{
                   startAdornment: (
                     <InputAdornment position="start">
-                      <WorkIcon sx={{ fontSize: '0.8rem' }} />
+                      <WorkIcon sx={{ fontSize: '0.9rem' }} />
                     </InputAdornment>
                   ),
                 }}
-                InputLabelProps={{ sx: { fontSize: '0.7rem' } }}
-                sx={{ '& .MuiInputBase-input': { fontSize: '0.7rem' } }}
+                InputLabelProps={{ sx: { fontSize: '0.9rem' } }}
+                sx={{ '& .MuiInputBase-input': { fontSize: '0.9rem' } }}
               >
                 {roles.map(role => (
-                  <MenuItem key={role.value} value={role.value} sx={{ fontSize: '0.7rem' }}>
+                  <MenuItem key={role.value} value={role.value} sx={{ fontSize: '0.9rem' }}>
                     {role.label}
                   </MenuItem>
                 ))}
               </TextField>
             </Grid>
-            <Grid item xs={12} sm={6}>
+            <Grid item xs={12} sm={6} sx={{width:"250px"}}>
               <TextField
                 fullWidth
                 select
@@ -272,21 +272,21 @@ const AddMemberModal = ({ open, onClose, onSubmit, loading }) => {
                 InputProps={{
                   startAdornment: (
                     <InputAdornment position="start">
-                      <BusinessIcon sx={{ fontSize: '0.8rem' }} />
+                      <BusinessIcon sx={{ fontSize: '0.9rem' }} />
                     </InputAdornment>
                   ),
                 }}
-                InputLabelProps={{ sx: { fontSize: '0.7rem' } }}
-                sx={{ '& .MuiInputBase-input': { fontSize: '0.7rem' } }}
+                InputLabelProps={{ sx: { fontSize: '0.9rem' } }}
+                sx={{ '& .MuiInputBase-input': { fontSize: '0.9rem' } }}
               >
                 {departments.map(dept => (
-                  <MenuItem key={dept} value={dept} sx={{ fontSize: '0.7rem' }}>
+                  <MenuItem key={dept} value={dept} sx={{ fontSize: '0.9rem' }}>
                     {dept}
                   </MenuItem>
                 ))}
               </TextField>
             </Grid>
-            <Grid item xs={12} sm={6}>
+            <Grid item xs={12} sm={6} sx={{width:"250px"}}>
               <TextField
                 fullWidth
                 select
@@ -298,21 +298,21 @@ const AddMemberModal = ({ open, onClose, onSubmit, loading }) => {
                 InputProps={{
                   startAdornment: (
                     <InputAdornment position="start">
-                      <LocationOnIcon sx={{ fontSize: '0.8rem' }} />
+                      <LocationOnIcon sx={{ fontSize: '0.9rem' }} />
                     </InputAdornment>
                   ),
                 }}
-                InputLabelProps={{ sx: { fontSize: '0.7rem' } }}
-                sx={{ '& .MuiInputBase-input': { fontSize: '0.7rem' } }}
+                InputLabelProps={{ sx: { fontSize: '0.9rem' } }}
+                sx={{ '& .MuiInputBase-input': { fontSize: '0.9rem' } }}
               >
                 {locations.map(loc => (
-                  <MenuItem key={loc} value={loc} sx={{ fontSize: '0.7rem' }}>
+                  <MenuItem key={loc} value={loc} sx={{ fontSize: '0.9rem' }}>
                     {loc}
                   </MenuItem>
                 ))}
               </TextField>
             </Grid>
-            <Grid item xs={12} sm={6}>
+            <Grid item xs={12} sm={6} sx={{width:"250px"}}>
               <TextField
                 fullWidth
                 name="password"
@@ -326,12 +326,12 @@ const AddMemberModal = ({ open, onClose, onSubmit, loading }) => {
                 InputProps={{
                   startAdornment: (
                     <InputAdornment position="start">
-                      <LockIcon sx={{ fontSize: '0.8rem' }} />
+                      <LockIcon sx={{ fontSize: '0.9rem' }} />
                     </InputAdornment>
                   ),
                 }}
-                InputLabelProps={{ sx: { fontSize: '0.7rem' } }}
-                sx={{ '& .MuiInputBase-input': { fontSize: '0.7rem' } }}
+                InputLabelProps={{ sx: { fontSize: '0.9rem' } }}
+                sx={{ '& .MuiInputBase-input': { fontSize: '0.9rem' } }}
               />
             </Grid>
           </Grid>

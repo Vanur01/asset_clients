@@ -1,4 +1,4 @@
-// AssetManagement.jsx (Updated - Role-based Asset Request Navigation)
+// AssetManagement.jsx - Fully Responsive with consistent design
 import { useState, useEffect, useCallback } from "react";
 import {
   Box,
@@ -35,6 +35,8 @@ import {
   TablePagination,
   TableSortLabel,
   LinearProgress,
+  useMediaQuery,
+  useTheme,
 } from "@mui/material";
 import {
   Search,
@@ -53,83 +55,70 @@ import {
   Close,
   ClearAll,
   FileDownload,
-  Assignment,
+  RateReview,
+  ArrowBack,
 } from "@mui/icons-material";
-import { createTheme, ThemeProvider } from "@mui/material/styles";
 import { useAsset } from "../context/AssetContext";
 import { useAuth } from "../context/AuthContexts";
 import { useNavigate } from "react-router-dom";
 import * as XLSX from "xlsx";
 
-const theme = createTheme({
-  palette: {
-    primary: { main: "#1a5c6b" },
-    secondary: { main: "#2e7d32" },
-    background: { default: "#f0f2f5" },
-  },
-  typography: {
-    fontFamily: "'DM Sans', sans-serif",
-    fontSize: 13,
-  },
-  components: {
-    MuiButton: {
-      styleOverrides: {
-        root: {
-          borderRadius: 8,
-          textTransform: "none",
-          fontWeight: 600,
-          fontSize: 13,
-        },
-      },
-    },
-    MuiPaper: {
-      styleOverrides: {
-        root: { borderRadius: 16 },
-      },
-    },
-    MuiChip: {
-      styleOverrides: {
-        root: { borderRadius: 20 },
-      },
-    },
-  },
-});
+// ─── Consistent Palette ───────────────────────────────────────────────────
+const C = {
+  primary: "#0d4a5c",
+  primaryDark: "#0a3a49",
+  primaryLight: "#e8f2f5",
+  success: "#16a34a",
+  successBg: "#dcfce7",
+  surface: "#f1f4f8",
+  card: "#ffffff",
+  border: "#e2e8f0",
+  error: "#d32f2f",
+  warning: "#f59e0b",
+  warningBg: "#fef3c7",
+  text: { primary: "#1e293b", secondary: "#64748b", disabled: "#94a3b8" },
+};
 
+// ─── Status Configuration ─────────────────────────────────────────────────
 const statusConfig = {
   Active: {
-    bg: "#1a3a4a",
-    color: "#fff",
+    bg: C.successBg,
+    color: C.success,
     icon: <CheckCircle sx={{ fontSize: 12 }} />,
   },
   "In Maintenance": {
-    bg: "#b8d8e8",
-    color: "#1a3a4a",
+    bg: "#dbeafe",
+    color: "#1d4ed8",
     icon: <Settings sx={{ fontSize: 12 }} />,
   },
   Retired: {
-    bg: "#4a4a5a",
-    color: "#fff",
+    bg: "#f1f5f9",
+    color: C.text.disabled,
     icon: <Cancel sx={{ fontSize: 12 }} />,
   },
   "In Transit": {
-    bg: "#e67e22",
-    color: "#fff",
+    bg: "#fef3c7",
+    color: "#d97706",
     icon: <Schedule sx={{ fontSize: 12 }} />,
   },
   Reserved: {
-    bg: "#3498db",
-    color: "#fff",
+    bg: "#e0f2fe",
+    color: "#0891b2",
     icon: <AssignmentTurnedIn sx={{ fontSize: 12 }} />,
   },
   "Under Repair": {
-    bg: "#c0392b",
-    color: "#fff",
+    bg: "#ffebea",
+    color: C.error,
     icon: <Warning sx={{ fontSize: 12 }} />,
   },
 };
 
 const StatusChip = ({ status }) => {
-  const cfg = statusConfig[status] || { bg: "#eee", color: "#333", icon: null };
+  const cfg = statusConfig[status] || {
+    bg: "#f1f5f9",
+    color: C.text.secondary,
+    icon: null,
+  };
   return (
     <Chip
       label={status}
@@ -139,33 +128,32 @@ const StatusChip = ({ status }) => {
         bgcolor: cfg.bg,
         color: cfg.color,
         fontWeight: 600,
-        fontSize: 11.5,
-        height: 28,
+        fontSize: "0.72rem",
+        height: 24,
         borderRadius: "20px",
-        px: 0.5,
         "& .MuiChip-icon": { fontSize: 14, color: cfg.color },
       }}
     />
   );
 };
 
+// ─── Asset Card Component ─────────────────────────────────────────────────
 const AssetCard = ({ asset, onView, onClone }) => (
   <Paper
     elevation={0}
     sx={{
-      border: "1px solid #e8eaed",
-      borderRadius: 4,
-      p: 3,
+      border: `1px solid ${C.border}`,
+      borderRadius: 3,
+      p: 2.5,
       height: "100%",
-      width: "365px",
-      bgcolor: "#fff",
+      bgcolor: C.card,
+      width:"365px",
       transition: "all 0.2s ease-in-out",
+      cursor: "pointer",
       "&:hover": {
         boxShadow: "0 8px 24px rgba(0,0,0,0.12)",
         transform: "translateY(-2px)",
       },
-      cursor: "pointer",
-      position: "relative",
     }}
     onClick={() => onView(asset)}
   >
@@ -173,54 +161,54 @@ const AssetCard = ({ asset, onView, onClone }) => (
       direction="row"
       justifyContent="space-between"
       alignItems="flex-start"
-      mb={0.5}
+      mb={1}
     >
       <Typography
         fontWeight={700}
-        fontSize={15.5}
-        color="#1a1a2e"
-        sx={{ lineHeight: 1.3, flex: 1, mr: 1 }}
+        fontSize="0.95rem"
+        color={C.text.primary}
+        sx={{ flex: 1, mr: 1 }}
       >
         {asset.assetName}
       </Typography>
       <StatusChip status={asset.status} />
     </Stack>
 
-    <Typography fontSize={11} color="#999" mb={1}>
+    <Typography fontSize="0.7rem" color={C.text.disabled} mb={1.5}>
       ID: {asset.assetId}
     </Typography>
 
-    <Stack direction="row" alignItems="center" spacing={0.3} mb={2}>
-      <LocationOn sx={{ fontSize: 14, color: "#aaa" }} />
-      <Typography fontSize={12.5} color="#888" noWrap>
+    <Stack direction="row" alignItems="center" spacing={0.5} mb={2}>
+      <LocationOn sx={{ fontSize: 14, color: C.text.disabled }} />
+      <Typography fontSize="0.75rem" color={C.text.secondary} noWrap>
         {asset.currentLocation || "No location specified"}
       </Typography>
     </Stack>
 
-    <Divider sx={{ mb: 2, borderColor: "#f0f2f5" }} />
+    <Divider sx={{ mb: 2, borderColor: C.border }} />
 
-    <Stack spacing={1.2}>
+    <Stack spacing={1}>
       <Stack direction="row" justifyContent="space-between">
-        <Typography fontSize={12.5} color="#999">
+        <Typography fontSize="0.7rem" color={C.text.disabled}>
           Category:
         </Typography>
-        <Typography fontSize={12.5} fontWeight={600} color="#1a1a2e">
+        <Typography fontSize="0.75rem" fontWeight={600} color={C.text.primary}>
           {asset.assetCategory}
         </Typography>
       </Stack>
       <Stack direction="row" justifyContent="space-between">
-        <Typography fontSize={12.5} color="#999">
+        <Typography fontSize="0.7rem" color={C.text.disabled}>
           Condition:
         </Typography>
-        <Typography fontSize={12.5} fontWeight={600} color="#1a1a2e">
+        <Typography fontSize="0.75rem" fontWeight={600} color={C.text.primary}>
           {asset.assetCondition || "N/A"}
         </Typography>
       </Stack>
       <Stack direction="row" justifyContent="space-between">
-        <Typography fontSize={12.5} color="#999">
+        <Typography fontSize="0.7rem" color={C.text.disabled}>
           Purchase Cost:
         </Typography>
-        <Typography fontSize={12.5} fontWeight={600} color="#1a5c6b">
+        <Typography fontSize="0.75rem" fontWeight={600} color={C.primary}>
           {asset.purchaseCost
             ? `$${asset.purchaseCost.toLocaleString()}`
             : "N/A"}
@@ -232,7 +220,7 @@ const AssetCard = ({ asset, onView, onClone }) => (
           justifyContent="space-between"
           alignItems="center"
         >
-          <Typography fontSize={12.5} color="#999">
+          <Typography fontSize="0.7rem" color={C.text.disabled}>
             Health Score:
           </Typography>
           <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
@@ -248,7 +236,7 @@ const AssetCard = ({ asset, onView, onClone }) => (
                     : "error"
               }
             />
-            <Typography fontSize={12.5} fontWeight={600}>
+            <Typography fontSize="0.75rem" fontWeight={600}>
               {asset.healthScore}%
             </Typography>
           </Box>
@@ -259,7 +247,7 @@ const AssetCard = ({ asset, onView, onClone }) => (
     <Stack
       direction="row"
       spacing={1}
-      sx={{ mt: 2, pt: 1, borderTop: "1px solid #f0f2f5" }}
+      sx={{ mt: 2, pt: 1.5, borderTop: `1px solid ${C.border}` }}
     >
       <Tooltip title="Clone Asset">
         <IconButton
@@ -268,9 +256,9 @@ const AssetCard = ({ asset, onView, onClone }) => (
             e.stopPropagation();
             onClone(asset);
           }}
-          sx={{ bgcolor: "#f5f5f5", "&:hover": { bgcolor: "#e0e0e0" } }}
+          sx={{ bgcolor: C.surface, "&:hover": { bgcolor: C.border } }}
         >
-          <ContentCopy fontSize="small" />
+          <ContentCopy sx={{ fontSize: "0.9rem", color: C.text.secondary }} />
         </IconButton>
       </Tooltip>
       <Tooltip title="View Details">
@@ -280,15 +268,11 @@ const AssetCard = ({ asset, onView, onClone }) => (
             e.stopPropagation();
             onView(asset);
           }}
-          sx={{ bgcolor: "#f5f5f5", "&:hover": { bgcolor: "#e0e0e0" } }}
+          sx={{ bgcolor: C.surface, "&:hover": { bgcolor: C.border } }}
         >
-          <Visibility fontSize="small" />
+          <Visibility sx={{ fontSize: "0.9rem", color: C.text.secondary }} />
         </IconButton>
       </Tooltip>
-      <Box sx={{ flex: 1 }} />
-      <Typography fontSize={11} color="#ccc" sx={{ alignSelf: "center" }}>
-        Click to view
-      </Typography>
     </Stack>
   </Paper>
 );
@@ -296,6 +280,10 @@ const AssetCard = ({ asset, onView, onClone }) => (
 export default function AssetManagement() {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
+  const isTablet = useMediaQuery(theme.breakpoints.down("md"));
+
   const [viewMode, setViewMode] = useState("grid");
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState("");
@@ -310,13 +298,12 @@ export default function AssetManagement() {
   const [selectedAsset, setSelectedAsset] = useState(null);
   const [loading, setLoading] = useState(false);
   const [page, setPage] = useState(0);
-  const [rowsPerPage, setRowsPerPage] = useState(10);
+  const [rowsPerPage, setRowsPerPage] = useState(isMobile ? 5 : 10);
   const [orderBy, setOrderBy] = useState("createdAt");
   const [order, setOrder] = useState("desc");
 
   const { assets, pagination, getAllAssets, cloneAsset } = useAsset();
 
-  // Role-based navigation for asset requests
   const handleAssetRequests = () => {
     const userRole = user?.role;
     if (userRole === "admin") {
@@ -324,7 +311,6 @@ export default function AssetManagement() {
     } else if (userRole === "team") {
       navigate("/admin/my-requests");
     } else {
-      // Default to admin view if role is not recognized
       navigate("/admin/asset-requests");
     }
   };
@@ -364,9 +350,7 @@ export default function AssetManagement() {
   };
 
   const handleKeyPress = (e) => {
-    if (e.key === "Enter") {
-      handleSearch();
-    }
+    if (e.key === "Enter") handleSearch();
   };
 
   const handleCloneAsset = async () => {
@@ -379,9 +363,7 @@ export default function AssetManagement() {
         currentLocation: selectedAsset.currentLocation,
         status: "Active",
       };
-
       const result = await cloneAsset(selectedAsset._id, cloneData);
-
       if (result && result.success) {
         setSnackbar({
           open: true,
@@ -395,13 +377,9 @@ export default function AssetManagement() {
         throw new Error(result?.message || "Failed to clone asset");
       }
     } catch (error) {
-      console.error("Clone error:", error);
       setSnackbar({
         open: true,
-        message:
-          error.response?.data?.message ||
-          error.message ||
-          "Failed to clone asset",
+        message: error.message || "Failed to clone asset",
         severity: "error",
       });
     } finally {
@@ -432,15 +410,6 @@ export default function AssetManagement() {
     }
   };
 
-  const handleClonePage = () => {
-    const userRole = user?.role;
-    if (userRole === "team") {
-      navigate("/team/assets/clone");
-    } else {
-      navigate("/admin/assets/clone");
-    }
-  };
-
   const handleExportToExcel = () => {
     const exportData = assets.map((asset) => ({
       "Asset ID": asset.assetId,
@@ -454,7 +423,6 @@ export default function AssetManagement() {
       "Health Score": asset.healthScore,
       "Created At": new Date(asset.createdAt).toLocaleDateString(),
     }));
-
     const ws = XLSX.utils.json_to_sheet(exportData);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Assets");
@@ -462,7 +430,6 @@ export default function AssetManagement() {
       wb,
       `assets_export_${new Date().toISOString().split("T")[0]}.xlsx`,
     );
-
     setSnackbar({
       open: true,
       message: "Export completed successfully",
@@ -485,471 +452,549 @@ export default function AssetManagement() {
     setTimeout(() => fetchAssets(), 100);
   };
 
-  // Check if user has access to asset management
   const userRole = user?.role;
   const isTeamUser = userRole === "team";
   const isAdminUser = userRole === "admin" || userRole === "super_admin";
 
-  // Team users should not see certain buttons or have limited access
-  const showAssetRequests = isAdminUser || isTeamUser;
+  // Responsive grid sizing
+  const getGridSize = () => {
+    if (isMobile) return 12;
+    if (isTablet) return 6;
+    return 3;
+  };
 
   return (
-    <ThemeProvider theme={theme}>
-      <link
-        href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap"
-        rel="stylesheet"
-      />
-      <Box sx={{ minHeight: "100vh", p: { xs: 2, sm: 3 } }}>
-        {/* Page Header */}
-        <Stack
-          direction={{ xs: "column", sm: "row" }}
-          justifyContent="space-between"
-          alignItems={{ xs: "flex-start", sm: "center" }}
-          mb={3}
-          spacing={2}
-        >
-          <Box>
-            <Typography
-              fontWeight={700}
-              fontSize={{ xs: 20, sm: 22 }}
-              color="#1a1a2e"
-            >
-              Asset Management
-            </Typography>
-            <Typography fontSize={13} color="#888" mt={0.3}>
-              Track and manage your assets and equipment •{" "}
-              {pagination.total || 0} total assets
-            </Typography>
-          </Box>
-          <Stack
-            direction="row"
-            spacing={1.5}
-            alignItems="center"
-            flexWrap="wrap"
-            gap={1}
+    <Box sx={{ minHeight: "100vh", p: { xs: 2, sm: 3 } }}>
+      {/* Header */}
+      <Stack
+        direction={{ xs: "column", sm: "row" }}
+        justifyContent="space-between"
+        alignItems={{ xs: "flex-start", sm: "center" }}
+        mb={3}
+        spacing={2}
+      >
+        <Box>
+          <Typography
+            fontWeight={700}
+            fontSize={{ xs: "1.25rem", sm: "1.35rem" }}
+            color={C.text.primary}
           >
-            {showAssetRequests && (
-              <Button
-                variant="contained"
-                startIcon={<Assignment />}
-                onClick={handleAssetRequests}
-                sx={{ bgcolor: "#1e3d67", borderRadius: 3, px: 2.5, py: 1 }}
-              >
-                Asset Requests
-              </Button>
-            )}
+            Asset Management
+          </Typography>
+          <Typography fontSize="0.75rem" color={C.text.secondary} mt={0.5}>
+            Track and manage your assets and equipment • {pagination.total || 0}{" "}
+            total assets
+          </Typography>
+        </Box>
+        <Stack direction="row" spacing={1.5} flexWrap="wrap" useFlexGap>
+          <Button
+            variant="contained"
+            startIcon={<ContentCopy sx={{ fontSize: "1rem" }} />}
+            onClick={() =>
+              navigate(
+                isAdminUser ? "/admin/assets/clone" : "/team/assets/clone",
+              )
+            }
+            sx={{
+              bgcolor: C.primary,
+              fontSize: "0.75rem",
+              textTransform: "none",
+              borderRadius: 2,
+              py: 0.8,
+            }}
+          >
+            {!isMobile && "Clone Asset"}
+          </Button>
+          {(isAdminUser || isTeamUser) && (
             <Button
-              variant="contained"
-              startIcon={<ContentCopy />}
-              onClick={handleClonePage}
+              variant="outlined"
+              startIcon={<RateReview sx={{ fontSize: "1rem" }} />}
+              onClick={handleAssetRequests}
               sx={{
-                bgcolor: "#6c757d",
-                "&:hover": { bgcolor: "#5a6268" },
-                borderRadius: 3,
-                px: 2.5,
-                py: 1,
+                borderColor: C.primary,
+                color: C.primary,
+                fontSize: "0.75rem",
+                textTransform: "none",
+                borderRadius: 2,
+                py: 0.8,
               }}
             >
-              Clone Asset
+              {!isMobile && "Requests"}
             </Button>
-            <Button
-              variant="contained"
-              startIcon={<Add />}
-              onClick={handleAddAsset}
-              sx={{
-                bgcolor: "#1a3a4a",
-                "&:hover": { bgcolor: "#0f2530" },
-                borderRadius: 3,
-                px: 2.5,
-                py: 1,
-              }}
-            >
-              Add Asset
-            </Button>
-          </Stack>
+          )}
+          <Button
+            variant="contained"
+            startIcon={<Add sx={{ fontSize: "1rem" }} />}
+            onClick={handleAddAsset}
+            sx={{
+              bgcolor: C.primary,
+              fontSize: "0.75rem",
+              textTransform: "none",
+              borderRadius: 2,
+              py: 0.8,
+            }}
+          >
+            {!isMobile && "Add Asset"}
+          </Button>
         </Stack>
+      </Stack>
 
-        {/* Search & Filter Bar */}
-        <Paper
-          elevation={0}
-          sx={{
-            border: "1px solid #e8eaed",
-            borderRadius: 3,
-            p: 2,
-            mb: 3,
-            bgcolor: "#fff",
-          }}
+      {/* Search & Filter Bar */}
+      <Paper
+        elevation={0}
+        sx={{
+          border: `1px solid ${C.border}`,
+          borderRadius: 3,
+          p: 2,
+          mb: 3,
+          bgcolor: C.card,
+        }}
+      >
+        <Stack
+          direction={{ xs: "column", md: "row" }}
+          spacing={2}
+          alignItems={{ xs: "stretch", md: "center" }}
         >
-          <Stack
-            direction={{ xs: "column", md: "row" }}
-            spacing={2}
-            alignItems={{ xs: "stretch", md: "center" }}
-            flexWrap="wrap"
+          <TextField
+            fullWidth
+            size="small"
+            placeholder="Search by asset name, ID, or serial number..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            onKeyPress={handleKeyPress}
+            sx={{ flex: 2 }}
+            InputProps={{
+              startAdornment: (
+                <InputAdornment position="start">
+                  <Search sx={{ fontSize: "1rem", color: C.text.disabled }} />
+                </InputAdornment>
+              ),
+              endAdornment: search && (
+                <InputAdornment position="end">
+                  <IconButton size="small" onClick={() => setSearch("")}>
+                    <Close sx={{ fontSize: "0.9rem" }} />
+                  </IconButton>
+                </InputAdornment>
+              ),
+              sx: { fontSize: "0.75rem" },
+            }}
+          />
+          <Button
+            variant="contained"
+            onClick={handleSearch}
+            size="small"
+            sx={{ bgcolor: C.primary, minWidth: 80, fontSize: "0.75rem" }}
           >
-            <TextField
-              fullWidth
-              size="small"
-              placeholder="Search by asset name, ID, or serial number..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              onKeyPress={handleKeyPress}
-              sx={{ flex: 2, minWidth: 200 }}
-              InputProps={{
-                startAdornment: (
-                  <InputAdornment position="start">
-                    <Search fontSize="small" sx={{ color: "#bbb" }} />
-                  </InputAdornment>
-                ),
-                endAdornment: search && (
-                  <InputAdornment position="end">
-                    <IconButton size="small" onClick={() => setSearch("")}>
-                      <Close fontSize="small" />
-                    </IconButton>
-                  </InputAdornment>
-                ),
-                sx: { borderRadius: 2, bgcolor: "#fafbfc" },
-              }}
-            />
+            Search
+          </Button>
+
+          <FormControl size="small" sx={{ minWidth: { xs: "100%", md: 130 } }}>
+            <Select
+              value={category}
+              onChange={(e) => setCategory(e.target.value)}
+              displayEmpty
+            >
+              <MenuItem value="">All Categories</MenuItem>
+              {[
+                "Equipment",
+                "IT",
+                "Vehicle",
+                "Machinery",
+                "Tool",
+                "Furniture",
+                "Electrical",
+              ].map((c) => (
+                <MenuItem key={c} value={c}>
+                  {c}
+                </MenuItem>
+              ))}
+            </Select>
+          </FormControl>
+
+          <FormControl size="small" sx={{ minWidth: { xs: "100%", md: 120 } }}>
+            <Select
+              value={status}
+              onChange={(e) => setStatus(e.target.value)}
+              displayEmpty
+            >
+              <MenuItem value="">All Status</MenuItem>
+              {Object.keys(statusConfig).map((s) => (
+                <MenuItem key={s} value={s}>
+                  {s}
+                </MenuItem>
+              ))}
+            </Select>
+          </FormControl>
+
+          <FormControl size="small" sx={{ minWidth: { xs: "100%", md: 120 } }}>
+            <Select
+              value={condition}
+              onChange={(e) => setCondition(e.target.value)}
+              displayEmpty
+            >
+              <MenuItem value="">All Conditions</MenuItem>
+              {["Excellent", "Normal", "Critical", "Poor"].map((c) => (
+                <MenuItem key={c} value={c}>
+                  {c}
+                </MenuItem>
+              ))}
+            </Select>
+          </FormControl>
+
+          {(category || status || condition || search) && (
             <Button
-              variant="contained"
-              onClick={handleSearch}
               size="small"
-              sx={{ minWidth: 100 }}
+              onClick={clearFilters}
+              startIcon={<ClearAll />}
+              sx={{ fontSize: "0.7rem" }}
             >
-              Search
+              Clear
             </Button>
-            <Divider
-              orientation="vertical"
-              flexItem
-              sx={{ display: { xs: "none", md: "block" } }}
-            />
-            <FormControl
+          )}
+
+          <Tooltip title="Export to Excel">
+            <IconButton
+              onClick={handleExportToExcel}
               size="small"
-              sx={{ minWidth: { xs: "100%", md: 130 } }}
+              sx={{ bgcolor: C.surface, borderRadius: 2 }}
             >
-              <Select
-                value={category}
-                onChange={(e) => setCategory(e.target.value)}
-                displayEmpty
-                renderValue={(v) => v || "All Categories"}
-              >
-                <MenuItem value="">All Categories</MenuItem>
-                <MenuItem value="Equipment">Equipment</MenuItem>
-                <MenuItem value="IT">IT</MenuItem>
-                <MenuItem value="Vehicle">Vehicle</MenuItem>
-                <MenuItem value="Machinery">Machinery</MenuItem>
-                <MenuItem value="Tool">Tool</MenuItem>
-                <MenuItem value="Furniture">Furniture</MenuItem>
-                <MenuItem value="Electrical">Electrical</MenuItem>
-              </Select>
-            </FormControl>
-            <FormControl
-              size="small"
-              sx={{ minWidth: { xs: "100%", md: 120 } }}
-            >
-              <Select
-                value={status}
-                onChange={(e) => setStatus(e.target.value)}
-                displayEmpty
-                renderValue={(v) => v || "All Status"}
-              >
-                <MenuItem value="">All Status</MenuItem>
-                {Object.keys(statusConfig).map((s) => (
-                  <MenuItem key={s} value={s}>
-                    {s}
-                  </MenuItem>
-                ))}
-              </Select>
-            </FormControl>
-            <FormControl
-              size="small"
-              sx={{ minWidth: { xs: "100%", md: 120 } }}
-            >
-              <Select
-                value={condition}
-                onChange={(e) => setCondition(e.target.value)}
-                displayEmpty
-                renderValue={(v) => v || "All Conditions"}
-              >
-                <MenuItem value="">All Conditions</MenuItem>
-                <MenuItem value="Excellent">Excellent</MenuItem>
-                <MenuItem value="Normal">Normal</MenuItem>
-                <MenuItem value="Critical">Critical</MenuItem>
-                <MenuItem value="Poor">Poor</MenuItem>
-              </Select>
-            </FormControl>
-            {(category || status || condition || search) && (
-              <Button
-                size="small"
-                onClick={clearFilters}
-                startIcon={<ClearAll />}
-              >
-                Clear
-              </Button>
-            )}
-            <Divider
-              orientation="vertical"
-              flexItem
-              sx={{ display: { xs: "none", md: "block" } }}
-            />
-            <Tooltip title="Export to Excel">
+              <FileDownload
+                sx={{ fontSize: "1rem", color: C.text.secondary }}
+              />
+            </IconButton>
+          </Tooltip>
+
+          <Stack direction="row" spacing={0.5}>
+            <Tooltip title="Grid View">
               <IconButton
-                onClick={handleExportToExcel}
                 size="small"
-                sx={{ bgcolor: "#f5f5f5", borderRadius: 2 }}
+                onClick={() => setViewMode("grid")}
+                sx={{
+                  bgcolor: viewMode === "grid" ? C.primary : "transparent",
+                  color: viewMode === "grid" ? "#fff" : C.text.secondary,
+                  borderRadius: 2,
+                }}
               >
-                <FileDownload fontSize="small" />
+                <GridView sx={{ fontSize: "1rem" }} />
               </IconButton>
             </Tooltip>
-            <Divider
-              orientation="vertical"
-              flexItem
-              sx={{ display: { xs: "none", md: "block" } }}
-            />
-            <Stack direction="row" spacing={0.5}>
-              <Tooltip title="Grid View">
-                <IconButton
-                  size="small"
-                  onClick={() => setViewMode("grid")}
-                  sx={{
-                    bgcolor: viewMode === "grid" ? "#1a3a4a" : "transparent",
-                    color: viewMode === "grid" ? "#fff" : "#888",
-                    borderRadius: 2,
-                  }}
-                >
-                  <GridView fontSize="small" />
-                </IconButton>
-              </Tooltip>
-              <Tooltip title="List View">
-                <IconButton
-                  size="small"
-                  onClick={() => setViewMode("list")}
-                  sx={{
-                    bgcolor: viewMode === "list" ? "#1a3a4a" : "transparent",
-                    color: viewMode === "list" ? "#fff" : "#888",
-                    borderRadius: 2,
-                  }}
-                >
-                  <ViewList fontSize="small" />
-                </IconButton>
-              </Tooltip>
-            </Stack>
+            <Tooltip title="List View">
+              <IconButton
+                size="small"
+                onClick={() => setViewMode("list")}
+                sx={{
+                  bgcolor: viewMode === "list" ? C.primary : "transparent",
+                  color: viewMode === "list" ? "#fff" : C.text.secondary,
+                  borderRadius: 2,
+                }}
+              >
+                <ViewList sx={{ fontSize: "1rem" }} />
+              </IconButton>
+            </Tooltip>
           </Stack>
-        </Paper>
+        </Stack>
+      </Paper>
 
-        {/* Loading State */}
-        {loading && (
+      {/* Loading State */}
+      {loading && (
+        <Grid container spacing={2.5}>
+          {[1, 2, 3, 4, 5, 6].map((i) => (
+            <Grid item xs={12} sm={6} md={4} lg={3} key={i}>
+              <Skeleton
+                variant="rounded"
+                height={320}
+                sx={{ borderRadius: 3 }}
+              />
+            </Grid>
+          ))}
+        </Grid>
+      )}
+
+      {/* Grid View */}
+      {!loading && viewMode === "grid" && (
+        <>
           <Grid container spacing={2.5}>
-            {[1, 2, 3, 4, 5, 6].map((i) => (
-              <Grid item xs={12} sm={6} md={4} lg={3} key={i}>
-                <Skeleton
-                  variant="rounded"
-                  height={350}
-                  sx={{ borderRadius: 4 }}
+            {assets.map((asset) => (
+              <Grid item xs={12} sm={6} md={4} lg={3} key={asset._id}>
+                <AssetCard
+                  asset={asset}
+                  onView={handleViewAsset}
+                  onClone={openCloneDialog}
                 />
               </Grid>
             ))}
           </Grid>
-        )}
+          {assets.length === 0 && (
+            <Box textAlign="center" py={8}>
+              <Typography color={C.text.disabled} fontSize="0.85rem">
+                No assets found matching your filters.
+              </Typography>
+              <Button onClick={clearFilters} sx={{ mt: 2, color: C.primary }}>
+                Clear Filters
+              </Button>
+            </Box>
+          )}
+        </>
+      )}
 
-        {/* Asset Display - Grid View */}
-        {!loading && viewMode === "grid" && (
-          <>
-            <Grid container spacing={2.5}>
-              {assets.map((asset) => (
-                <Grid item xs={12} sm={6} md={4} lg={3} key={asset._id}>
-                  <AssetCard
-                    asset={asset}
-                    onView={handleViewAsset}
-                    onClone={openCloneDialog}
-                  />
-                </Grid>
-              ))}
-            </Grid>
-            {assets.length === 0 && (
-              <Box textAlign="center" py={8}>
-                <Typography color="#bbb" fontSize={14}>
-                  No assets found matching your filters.
-                </Typography>
-                <Button onClick={clearFilters} sx={{ mt: 2 }}>
-                  Clear Filters
-                </Button>
-              </Box>
-            )}
-          </>
-        )}
-
-        {/* Asset Display - List View */}
-        {!loading && viewMode === "list" && (
-          <Paper sx={{ width: "100%", overflow: "hidden", borderRadius: 3 }}>
-            <TableContainer sx={{ maxHeight: 600 }}>
-              <Table stickyHeader>
-                <TableHead>
-                  <TableRow>
-                    <TableCell>
-                      <TableSortLabel
-                        active={orderBy === "assetName"}
-                        direction={orderBy === "assetName" ? order : "asc"}
-                        onClick={() => handleSort("assetName")}
-                      >
-                        Asset Name
-                      </TableSortLabel>
-                    </TableCell>
-                    <TableCell>Asset ID</TableCell>
-                    <TableCell>Category</TableCell>
-                    <TableCell>Location</TableCell>
-                    <TableCell>Status</TableCell>
-                    <TableCell>Condition</TableCell>
-                    <TableCell>Health Score</TableCell>
-                    <TableCell align="center">Actions</TableCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {assets.map((asset) => (
-                    <TableRow
-                      hover
-                      key={asset._id}
-                      sx={{ cursor: "pointer" }}
-                      onClick={() => handleViewAsset(asset)}
+      {/* List View */}
+      {!loading && viewMode === "list" && (
+        <Paper
+          sx={{
+            width: "100%",
+            overflow: "auto",
+            borderRadius: 3,
+            border: `1px solid ${C.border}`,
+          }}
+        >
+          <TableContainer sx={{ maxHeight: 600 }}>
+            <Table stickyHeader size="small">
+              <TableHead>
+                <TableRow>
+                  <TableCell
+                    sx={{
+                      fontWeight: 600,
+                      fontSize: "0.75rem",
+                      bgcolor: C.surface,
+                    }}
+                  >
+                    <TableSortLabel
+                      active={orderBy === "assetName"}
+                      direction={orderBy === "assetName" ? order : "asc"}
+                      onClick={() => handleSort("assetName")}
                     >
-                      <TableCell>
-                        <Typography fontWeight={600} fontSize={13}>
-                          {asset.assetName}
+                      Asset Name
+                    </TableSortLabel>
+                  </TableCell>
+                  {!isMobile && (
+                    <TableCell
+                      sx={{
+                        fontWeight: 600,
+                        fontSize: "0.75rem",
+                        bgcolor: C.surface,
+                      }}
+                    >
+                      Asset ID
+                    </TableCell>
+                  )}
+                  <TableCell
+                    sx={{
+                      fontWeight: 600,
+                      fontSize: "0.75rem",
+                      bgcolor: C.surface,
+                    }}
+                  >
+                    Category
+                  </TableCell>
+                  {!isMobile && (
+                    <TableCell
+                      sx={{
+                        fontWeight: 600,
+                        fontSize: "0.75rem",
+                        bgcolor: C.surface,
+                      }}
+                    >
+                      Location
+                    </TableCell>
+                  )}
+                  <TableCell
+                    sx={{
+                      fontWeight: 600,
+                      fontSize: "0.75rem",
+                      bgcolor: C.surface,
+                    }}
+                  >
+                    Status
+                  </TableCell>
+                  <TableCell
+                    sx={{
+                      fontWeight: 600,
+                      fontSize: "0.75rem",
+                      bgcolor: C.surface,
+                    }}
+                  >
+                    Health
+                  </TableCell>
+                  <TableCell
+                    sx={{
+                      fontWeight: 600,
+                      fontSize: "0.75rem",
+                      bgcolor: C.surface,
+                    }}
+                    align="center"
+                  >
+                    Actions
+                  </TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {assets.map((asset) => (
+                  <TableRow
+                    hover
+                    key={asset._id}
+                    sx={{ cursor: "pointer" }}
+                    onClick={() => handleViewAsset(asset)}
+                  >
+                    <TableCell>
+                      <Typography
+                        fontWeight={600}
+                        fontSize="0.8rem"
+                        color={C.text.primary}
+                      >
+                        {asset.assetName}
+                      </Typography>
+                      {isMobile && (
+                        <Typography fontSize="0.65rem" color={C.text.disabled}>
+                          {asset.assetId}
                         </Typography>
-                        <Typography fontSize={11} color="#999">
-                          {asset.serialNumber || "No SN"}
-                        </Typography>
+                      )}
+                    </TableCell>
+                    {!isMobile && (
+                      <TableCell sx={{ fontSize: "0.75rem" }}>
+                        {asset.assetId}
                       </TableCell>
-                      <TableCell>{asset.assetId}</TableCell>
-                      <TableCell>
-                        <Chip
-                          label={asset.assetCategory}
-                          size="small"
-                          variant="outlined"
-                        />
-                      </TableCell>
+                    )}
+                    <TableCell>
+                      <Chip
+                        label={asset.assetCategory}
+                        size="small"
+                        sx={{ fontSize: "0.65rem", height: 22 }}
+                      />
+                    </TableCell>
+                    {!isMobile && (
                       <TableCell>
                         <Stack
                           direction="row"
                           alignItems="center"
                           spacing={0.5}
                         >
-                          <LocationOn sx={{ fontSize: 12, color: "#aaa" }} />
+                          <LocationOn
+                            sx={{ fontSize: 12, color: C.text.disabled }}
+                          />
                           <Typography
-                            fontSize={12}
+                            fontSize="0.7rem"
                             noWrap
-                            sx={{ maxWidth: 150 }}
+                            sx={{ maxWidth: 120 }}
                           >
                             {asset.currentLocation || "N/A"}
                           </Typography>
                         </Stack>
                       </TableCell>
-                      <TableCell>
-                        <StatusChip status={asset.status} />
-                      </TableCell>
-                      <TableCell>{asset.assetCondition || "N/A"}</TableCell>
-                      <TableCell>
-                        <Box
-                          sx={{ display: "flex", alignItems: "center", gap: 1 }}
-                        >
-                          <LinearProgress
-                            variant="determinate"
-                            value={asset.healthScore || 0}
-                            sx={{ width: 50, height: 4, borderRadius: 2 }}
-                          />
-                          <Typography fontSize={12}>
-                            {asset.healthScore || 0}%
-                          </Typography>
-                        </Box>
-                      </TableCell>
-                      <TableCell
-                        align="center"
-                        onClick={(e) => e.stopPropagation()}
+                    )}
+                    <TableCell>
+                      <StatusChip status={asset.status} />
+                    </TableCell>
+                    <TableCell>
+                      <Box
+                        sx={{ display: "flex", alignItems: "center", gap: 0.5 }}
                       >
-                        <Tooltip title="Clone">
-                          <IconButton
-                            size="small"
-                            onClick={() => openCloneDialog(asset)}
-                          >
-                            <ContentCopy fontSize="small" />
-                          </IconButton>
-                        </Tooltip>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </TableContainer>
-            <TablePagination
-              rowsPerPageOptions={[5, 10, 25, 50]}
-              component="div"
-              count={pagination.total || 0}
-              rowsPerPage={rowsPerPage}
-              page={page}
-              onPageChange={(e, newPage) => setPage(newPage)}
-              onRowsPerPageChange={(e) => {
-                setRowsPerPage(parseInt(e.target.value, 10));
-                setPage(0);
-              }}
-            />
-          </Paper>
-        )}
+                        <LinearProgress
+                          variant="determinate"
+                          value={asset.healthScore || 0}
+                          sx={{ width: 40, height: 3, borderRadius: 2 }}
+                        />
+                        <Typography fontSize="0.7rem">
+                          {asset.healthScore || 0}%
+                        </Typography>
+                      </Box>
+                    </TableCell>
+                    <TableCell
+                      align="center"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <Tooltip title="Clone">
+                        <IconButton
+                          size="small"
+                          onClick={() => openCloneDialog(asset)}
+                        >
+                          <ContentCopy sx={{ fontSize: "0.9rem" }} />
+                        </IconButton>
+                      </Tooltip>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </TableContainer>
+          <TablePagination
+            rowsPerPageOptions={[5, 10, 25, 50]}
+            component="div"
+            count={pagination.total || 0}
+            rowsPerPage={rowsPerPage}
+            page={page}
+            onPageChange={(e, newPage) => setPage(newPage)}
+            onRowsPerPageChange={(e) => {
+              setRowsPerPage(parseInt(e.target.value, 10));
+              setPage(0);
+            }}
+          />
+        </Paper>
+      )}
 
-        {/* Pagination for Grid View */}
-        {!loading && viewMode === "grid" && pagination.totalPages > 1 && (
-          <Box sx={{ display: "flex", justifyContent: "center", mt: 4 }}>
-            <Pagination
-              count={pagination.totalPages}
-              page={page + 1}
-              onChange={(e, value) => setPage(value - 1)}
-              color="primary"
-              size="large"
-            />
-          </Box>
-        )}
+      {/* Pagination for Grid View */}
+      {!loading && viewMode === "grid" && pagination.totalPages > 1 && (
+        <Box sx={{ display: "flex", justifyContent: "center", mt: 4 }}>
+          <Pagination
+            count={pagination.totalPages}
+            page={page + 1}
+            onChange={(e, value) => setPage(value - 1)}
+            color="primary"
+          />
+        </Box>
+      )}
 
-        {/* Clone Confirmation Dialog */}
-        <Dialog
-          open={cloneDialogOpen}
-          onClose={() => setCloneDialogOpen(false)}
-          maxWidth="xs"
-          fullWidth
+      {/* Clone Dialog */}
+      <Dialog
+        open={cloneDialogOpen}
+        onClose={() => setCloneDialogOpen(false)}
+        maxWidth="xs"
+        fullWidth
+      >
+        <DialogTitle
+          sx={{ fontSize: "1rem", fontWeight: 700, color: C.text.primary }}
         >
-          <DialogTitle>Confirm Clone</DialogTitle>
-          <DialogContent>
-            <DialogContentText>
-              Are you sure you want to clone "{selectedAsset?.assetName}"? A new
-              asset will be created with similar properties.
-            </DialogContentText>
-          </DialogContent>
-          <DialogActions>
-            <Button onClick={() => setCloneDialogOpen(false)}>Cancel</Button>
-            <Button
-              onClick={handleCloneAsset}
-              variant="contained"
-              sx={{ bgcolor: "#1a3a4a" }}
-            >
-              Clone
-            </Button>
-          </DialogActions>
-        </Dialog>
-
-        {/* Snackbar for notifications */}
-        <Snackbar
-          open={snackbar.open}
-          autoHideDuration={4000}
-          onClose={() => setSnackbar({ ...snackbar, open: false })}
-          anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
-        >
-          <Alert
-            severity={snackbar.severity}
-            sx={{ width: "100%" }}
-            onClose={() => setSnackbar({ ...snackbar, open: false })}
+          Confirm Clone
+        </DialogTitle>
+        <DialogContent>
+          <DialogContentText
+            sx={{ fontSize: "0.8rem", color: C.text.secondary }}
           >
-            {snackbar.message}
-          </Alert>
-        </Snackbar>
-      </Box>
-    </ThemeProvider>
+            Are you sure you want to clone "{selectedAsset?.assetName}"? A new
+            asset will be created with similar properties.
+          </DialogContentText>
+        </DialogContent>
+        <DialogActions sx={{ p: 2 }}>
+          <Button
+            onClick={() => setCloneDialogOpen(false)}
+            sx={{ fontSize: "0.75rem" }}
+          >
+            Cancel
+          </Button>
+          <Button
+            onClick={handleCloneAsset}
+            variant="contained"
+            sx={{ bgcolor: C.primary, fontSize: "0.75rem" }}
+          >
+            Clone
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Snackbar */}
+      <Snackbar
+        open={snackbar.open}
+        autoHideDuration={4000}
+        onClose={() => setSnackbar({ ...snackbar, open: false })}
+        anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
+      >
+        <Alert
+          severity={snackbar.severity}
+          onClose={() => setSnackbar({ ...snackbar, open: false })}
+          sx={{ fontSize: "0.75rem", borderRadius: 2 }}
+        >
+          {snackbar.message}
+        </Alert>
+      </Snackbar>
+    </Box>
   );
 }

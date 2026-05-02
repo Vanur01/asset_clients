@@ -126,6 +126,13 @@ const navItemsConfig = {
       path: "/admin/clients",
       roles: ["super_admin"],
     },
+        {
+      id: "team",
+      icon: PeopleAltOutlinedIcon,
+      label: "Team Management",
+      path: "/admin/team",
+      roles: ["admin"],
+    },
     {
       id: "checklists",
       icon: ChecklistOutlinedIcon,
@@ -153,13 +160,6 @@ const navItemsConfig = {
       label: "Assets Management",
       path: "/admin/assets",
       roles: ["admin", "team"],
-    },
-    {
-      id: "team",
-      icon: PeopleAltOutlinedIcon,
-      label: "Team Management",
-      path: "/admin/team",
-      roles: ["admin"],
     },
     {
       id: "reports",

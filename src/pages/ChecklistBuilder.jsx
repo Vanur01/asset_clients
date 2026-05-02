@@ -430,7 +430,7 @@ export default function ChecklistPage() {
     if (!isSuperAdmin) return;
     setLoadingAdmins(true);
     try {
-      const response = await axios.get("http://localhost:9001/api/v1/user/clients", getAuthHeaders());
+      const response = await axios.get("https://assset-management-backend-4.onrender.com/api/v1/user/clients", getAuthHeaders());
       if (response.data?.success && response.data?.clients) {
         const adminList = response.data.clients.map((client) => ({
           _id: client._id,
@@ -453,7 +453,7 @@ export default function ChecklistPage() {
     if (isSuperAdmin) return;
     setLoadingTeam(true);
     try {
-      const response = await axios.get("http://localhost:9001/api/v1/user/team", getAuthHeaders());
+      const response = await axios.get("https://assset-management-backend-4.onrender.com/api/v1/user/team", getAuthHeaders());
       if (response.data?.success && response.data?.members) {
         const teamList = response.data.members.map((member) => ({
           _id: member.id,
@@ -476,7 +476,7 @@ export default function ChecklistPage() {
     if (isSuperAdmin) return;
     setLoadingAssets(true);
     try {
-      const response = await axios.get("http://localhost:9001/api/v1/asset", getAuthHeaders());
+      const response = await axios.get("https://assset-management-backend-4.onrender.com/api/v1/asset", getAuthHeaders());
       if (response.data?.success && response.data?.assets) {
         setAssets(response.data.assets);
       }
