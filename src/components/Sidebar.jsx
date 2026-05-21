@@ -175,7 +175,7 @@ const navItemsConfig = {
       icon: Inventory2OutlinedIcon,
       label: "Assets Management",
       path: "/admin/assets",
-      roles: ["admin", "super_admin", "team"],
+      roles: ["admin", "team"],
     },
     {
       id: "reports",
