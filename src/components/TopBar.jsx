@@ -176,50 +176,6 @@ export default function TopHeader({ onMenuToggle }) {
           )}
         </Box>
 
-        {/* Center - Search Bar (Desktop only) */}
-        {isDesktop && (
-          <Box
-            sx={{
-              display: "flex",
-              alignItems: "center",
-              bgcolor: searchFocused ? "#ffffff" : "#f1f3f4",
-              border: searchFocused
-                ? `2px solid ${theme.palette.primary.main}`
-                : "2px solid transparent",
-              borderRadius: "28px",
-              px: 2,
-              height: { md: 40, lg: 44, xl: 48 },
-              width: { md: 280, lg: 360, xl: 440 },
-              maxWidth: "100%",
-              mx: "auto",
-              transition: "all 0.2s ease",
-              boxShadow: searchFocused ? "0 2px 8px rgba(0,0,0,0.08)" : "none",
-              "&:hover": { bgcolor: "#e8eaed" },
-            }}
-          >
-            <SearchIcon
-              sx={{ color: "#5f6368", fontSize: { md: 18, lg: 20 }, mr: 1, flexShrink: 0 }}
-            />
-            <InputBase
-              placeholder="Search assets, checklists, team members..."
-              value={searchValue}
-              onChange={(e) => setSearchValue(e.target.value)}
-              onFocus={() => setSearchFocused(true)}
-              onBlur={() => setSearchFocused(false)}
-              sx={{
-                flex: 1,
-                fontSize: { md: "13px", lg: "14px", xl: "15px" },
-                color: "#202124",
-                "& input::placeholder": {
-                  color: "#5f6368",
-                  opacity: 1,
-                  fontSize: { md: "12px", lg: "13px" },
-                },
-              }}
-            />
-          </Box>
-        )}
-
         {/* Right Section - Actions */}
         <Box
           sx={{
@@ -228,55 +184,6 @@ export default function TopHeader({ onMenuToggle }) {
             gap: { xs: 0.5, sm: 1, md: 1.5, lg: 2 },
           }}
         >
-          {/* Search Icon (Mobile/Tablet) */}
-          {(isMobile || isTablet) && (
-            <Tooltip title="Search" arrow>
-              <IconButton
-                onClick={handleSearchDrawerOpen}
-                sx={{
-                  color: "#5f6368",
-                  p: { xs: 0.75, sm: 1 },
-                  "&:hover": { bgcolor: alpha(theme.palette.primary.main, 0.04) },
-                }}
-                size="small"
-              >
-                <SearchIcon sx={{ fontSize: { xs: 20, sm: 22, md: 24 } }} />
-              </IconButton>
-            </Tooltip>
-          )}
-
-          {/* Notifications Bell */}
-          <Tooltip title="Notifications" arrow>
-            <IconButton
-              onClick={handleNotificationOpen}
-              sx={{
-                color: "#5f6368",
-                p: { xs: 0.75, sm: 1 },
-                "&:hover": { bgcolor: alpha(theme.palette.primary.main, 0.04) },
-                position: "relative",
-              }}
-              size="small"
-            >
-              <Badge
-                badgeContent={unreadCount}
-                sx={{
-                  "& .MuiBadge-badge": {
-                    bgcolor: "#ea4335",
-                    color: "#fff",
-                    fontSize: { xs: 9, sm: 10 },
-                    minWidth: { xs: 16, sm: 18 },
-                    height: { xs: 16, sm: 18 },
-                    borderRadius: "10px",
-                    top: 0,
-                    right: 0,
-                  },
-                }}
-              >
-                <NotificationsNoneIcon sx={{ fontSize: { xs: 20, sm: 22, md: 24 } }} />
-              </Badge>
-            </IconButton>
-          </Tooltip>
-
           {/* User Avatar & Info */}
           <Box
             onClick={handleUserMenuOpen}
@@ -346,116 +253,6 @@ export default function TopHeader({ onMenuToggle }) {
           </Box>
         </Box>
 
-        {/* ── Notifications Menu (Desktop) ── */}
-        <Menu
-          anchorEl={notificationAnchor}
-          open={Boolean(notificationAnchor) && !isMobile}
-          onClose={handleNotificationClose}
-          TransitionComponent={Fade}
-          PaperProps={{
-            elevation: 3,
-            sx: {
-              width: { sm: 320, md: 360, lg: 400 },
-              mt: 1.5,
-              borderRadius: "16px",
-              boxShadow: "0 8px 24px rgba(0,0,0,0.12)",
-              border: "1px solid #e8eaed",
-              maxHeight: 480,
-              overflow: "auto",
-            },
-          }}
-          transformOrigin={{ horizontal: "right", vertical: "top" }}
-          anchorOrigin={{ horizontal: "right", vertical: "bottom" }}
-        >
-          <Box
-            sx={{
-              px: 2,
-              py: 1.5,
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "center",
-              borderBottom: "1px solid #e8eaed",
-            }}
-          >
-            <Typography variant="subtitle1" fontWeight={700} color="#202124" fontSize={{ sm: 14, md: 15 }}>
-              Notifications
-              {unreadCount > 0 && (
-                <Chip
-                  label={unreadCount}
-                  size="small"
-                  sx={{ ml: 1, bgcolor: "#ea4335", color: "#fff", height: 18, fontSize: 11 }}
-                />
-              )}
-            </Typography>
-            {unreadCount > 0 && (
-              <Typography
-                variant="caption"
-                onClick={handleMarkAllRead}
-                sx={{ color: theme.palette.primary.main, cursor: "pointer", fontWeight: 500 }}
-              >
-                Mark all read
-              </Typography>
-            )}
-          </Box>
-          
-          {notifications.length === 0 ? (
-            <Box sx={{ p: 3, textAlign: "center" }}>
-              <NotificationsActiveIcon sx={{ fontSize: 40, color: "#dadce0", mb: 1 }} />
-              <Typography variant="body2" color="#5f6368">
-                No notifications
-              </Typography>
-            </Box>
-          ) : (
-            notifications.map((item) => (
-              <MenuItem
-                key={item.id}
-                onClick={() => handleNotificationClick(item.id)}
-                sx={{
-                  py: 1.5,
-                  px: 2,
-                  borderBottom: "1px solid #f0f0f0",
-                  bgcolor: item.read ? "transparent" : alpha(theme.palette.primary.main, 0.03),
-                  "&:hover": { bgcolor: alpha(theme.palette.primary.main, 0.05) },
-                }}
-              >
-                <Box>
-                  <Typography
-                    variant="body2"
-                    fontWeight={item.read ? 400 : 600}
-                    color="#202124"
-                    sx={{ mb: 0.5, fontSize: { sm: 13, md: 14 } }}
-                  >
-                    {item.title}
-                  </Typography>
-                  <Typography variant="caption" color="#5f6368" fontSize={{ sm: 11, md: 12 }}>
-                    {item.time}
-                  </Typography>
-                </Box>
-                {!item.read && (
-                  <Box
-                    sx={{
-                      width: 8,
-                      height: 8,
-                      borderRadius: "50%",
-                      bgcolor: theme.palette.primary.main,
-                      ml: "auto",
-                    }}
-                  />
-                )}
-              </MenuItem>
-            ))
-          )}
-          
-          <Box sx={{ p: 1.5, textAlign: "center", borderTop: "1px solid #e8eaed" }}>
-            <Typography
-              variant="caption"
-              sx={{ color: theme.palette.primary.main, cursor: "pointer", fontWeight: 500 }}
-            >
-              View all notifications
-            </Typography>
-          </Box>
-        </Menu>
-
         {/* ── User Menu (Desktop) ── */}
         <Menu
           anchorEl={userMenuAnchor}
@@ -508,26 +305,6 @@ export default function TopHeader({ onMenuToggle }) {
               />
             </Box>
           </Box>
-          <Divider sx={{ borderColor: "#e8eaed" }} />
-          <MenuItem onClick={handleUserMenuClose} sx={{ py: 1.2, px: 2 }}>
-            <ListItemIcon>
-              <PersonOutlineIcon fontSize="small" sx={{ color: "#5f6368" }} />
-            </ListItemIcon>
-            <ListItemText primary="Profile Settings" primaryTypographyProps={{ fontSize: 14 }} />
-          </MenuItem>
-          <MenuItem onClick={handleUserMenuClose} sx={{ py: 1.2, px: 2 }}>
-            <ListItemIcon>
-              <SettingsIcon fontSize="small" sx={{ color: "#5f6368" }} />
-            </ListItemIcon>
-            <ListItemText primary="Account Settings" primaryTypographyProps={{ fontSize: 14 }} />
-          </MenuItem>
-          <MenuItem onClick={handleUserMenuClose} sx={{ py: 1.2, px: 2 }}>
-            <ListItemIcon>
-              <HelpOutlineIcon fontSize="small" sx={{ color: "#5f6368" }} />
-            </ListItemIcon>
-            <ListItemText primary="Help & Support" primaryTypographyProps={{ fontSize: 14 }} />
-          </MenuItem>
-          <Divider sx={{ borderColor: "#e8eaed" }} />
           <MenuItem onClick={handleLogout} sx={{ py: 1.2, px: 2 }}>
             <ListItemIcon>
               <LogoutIcon fontSize="small" sx={{ color: "#d93025" }} />

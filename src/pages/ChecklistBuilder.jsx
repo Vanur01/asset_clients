@@ -246,7 +246,7 @@ const StatCard = ({
       boxShadow: active ? `0 0 0 3px ${alpha(iconColor, 0.15)}` : "none",
       cursor: onClick ? "pointer" : "default",
       transition: "all 0.2s ease",
-      width:"223px",
+      width: "223px",
       "&:hover": {
         transform: "translateY(-1px)",
         boxShadow: `0 4px 12px ${alpha(C.primary, 0.1)}`,
@@ -326,21 +326,21 @@ const CHECKLIST_TYPES = [
     icon: <ArticleOutlinedIcon sx={{ fontSize: 22 }} />,
     label: "Custom Checklist",
     desc: "Create a custom checklist from scratch",
-    redirectTo: "/create-checklist/custom",
+    redirectTo: "/admin/create-checklist/custom",
     color: C.primary,
   },
   {
     icon: <PublicIcon sx={{ fontSize: 22 }} />,
     label: "Global Checklist",
     desc: "Use predefined global templates",
-    redirectTo: "/create-checklist/global",
+    redirectTo: "/admin/create-checklist/global",
     color: C.info,
   },
   {
     icon: <TableChartIcon sx={{ fontSize: 22 }} />,
     label: "Import from Excel",
     desc: "Upload Excel file to generate checklist",
-    redirectTo: "/import-checklist/excel",
+    redirectTo: "/admin/import-checklist/excel",
     color: C.success,
   },
 ];
@@ -743,7 +743,7 @@ function AssignToTeamModal({
     setSelectedMembers((prev) =>
       prev.includes(memberId)
         ? prev.filter((id) => id !== memberId)
-        : [...prev, memberId],
+        : [...prev, memberId]
     );
     setErrors({ ...errors, selectedMembers: "" });
   };
@@ -1421,6 +1421,260 @@ function RequestFilterBar({ filters, onChange, onClear, activeCount }) {
   );
 }
 
+// ─── Review Request Dialog Component ──────────────────────────────────────────
+function ReviewRequestDialog({ open, onClose, request, onReview, loading }) {
+  const [rejectionReason, setRejectionReason] = useState("");
+
+  useEffect(() => {
+    if (open) {
+      setRejectionReason("");
+    }
+  }, [open]);
+
+  const handleReview = (action) => {
+    onReview(action, action === "rejected" ? rejectionReason : null);
+  };
+
+  if (!request) return null;
+
+  return (
+    <Dialog
+      open={open}
+      onClose={onClose}
+      maxWidth="sm"
+      fullWidth
+      PaperProps={{ sx: { borderRadius: 3 } }}
+    >
+      <DialogTitle sx={{ p: 3, pb: 2, bgcolor: C.primary, color: "#fff" }}>
+        <Box display="flex" alignItems="center" justifyContent="space-between">
+          <Box>
+            <Typography sx={{ fontSize: "1rem", fontWeight: 700 }}>
+              Review Request
+            </Typography>
+            <Typography
+              sx={{
+                fontSize: "0.72rem",
+                color: "rgba(255,255,255,0.8)",
+                mt: 0.3,
+              }}
+            >
+              {request.checklistName}
+            </Typography>
+          </Box>
+          <IconButton onClick={onClose} size="small" sx={{ color: "#fff" }}>
+            <CloseIcon />
+          </IconButton>
+        </Box>
+      </DialogTitle>
+      <DialogContent sx={{ p: 3 }}>
+        <Stack spacing={3}>
+          {/* Request Details */}
+          <Paper variant="outlined" sx={{ p: 2, borderRadius: 2 }}>
+            <Typography sx={{ fontWeight: 600, mb: 1.5, fontSize: "0.85rem" }}>
+              Request Details
+            </Typography>
+            <Grid container spacing={1.5}>
+              <Grid item xs={6}>
+                <Typography sx={{ fontSize: "0.7rem", color: C.text.disabled }}>
+                  Requested By
+                </Typography>
+                <Typography sx={{ fontSize: "0.85rem", fontWeight: 500 }}>
+                  {request.requestedByName ||
+                    request.requestedBy?.name ||
+                    request.requestedBy?.email ||
+                    "—"}
+                </Typography>
+              </Grid>
+              <Grid item xs={6}>
+                <Typography sx={{ fontSize: "0.7rem", color: C.text.disabled }}>
+                  Category
+                </Typography>
+                <Chip
+                  label={request.category}
+                  size="small"
+                  sx={{
+                    mt: 0.5,
+                    bgcolor: alpha(C.primary, 0.08),
+                    color: C.primary,
+                    fontSize: "0.7rem",
+                  }}
+                />
+              </Grid>
+              <Grid item xs={6}>
+                <Typography sx={{ fontSize: "0.7rem", color: C.text.disabled }}>
+                  Urgency Level
+                </Typography>
+                <Box mt={0.5}>
+                  <UrgencyChip level={request.urgencyLevel} />
+                </Box>
+              </Grid>
+              <Grid item xs={6}>
+                <Typography sx={{ fontSize: "0.7rem", color: C.text.disabled }}>
+                  Submission Date
+                </Typography>
+                <Typography sx={{ fontSize: "0.85rem" }}>
+                  {request.createdAt
+                    ? new Date(request.createdAt).toLocaleDateString("en-IN", {
+                        day: "2-digit",
+                        month: "short",
+                        year: "numeric",
+                      })
+                    : "—"}
+                </Typography>
+              </Grid>
+            </Grid>
+          </Paper>
+
+          {/* Request Reason */}
+          {request.reason && (
+            <Paper variant="outlined" sx={{ p: 2, borderRadius: 2 }}>
+              <Typography sx={{ fontWeight: 600, mb: 1, fontSize: "0.85rem" }}>
+                Request Reason
+              </Typography>
+              <Typography sx={{ fontSize: "0.85rem", color: C.text.secondary }}>
+                {request.reason}
+              </Typography>
+            </Paper>
+          )}
+
+          {/* Reference Files */}
+          {request.referenceFiles?.length > 0 && (
+            <Paper variant="outlined" sx={{ p: 2, borderRadius: 2 }}>
+              <Typography sx={{ fontWeight: 600, mb: 1, fontSize: "0.85rem" }}>
+                Reference Files ({request.referenceFiles.length})
+              </Typography>
+              <Stack spacing={1}>
+                {request.referenceFiles.map((file, index) => (
+                  <Box
+                    key={index}
+                    sx={{
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      p: 1,
+                      bgcolor: alpha(C.info, 0.05),
+                      borderRadius: 1,
+                    }}
+                  >
+                    <Box display="flex" alignItems="center" gap={1}>
+                      <AttachFileIcon sx={{ fontSize: 16, color: C.text.disabled }} />
+                      <Typography sx={{ fontSize: "0.8rem" }}>
+                        {file.name || `File ${index + 1}`}
+                      </Typography>
+                    </Box>
+                    <Button
+                      size="small"
+                      onClick={() => {
+                        if (file.url) {
+                          window.open(file.url, "_blank");
+                        }
+                      }}
+                      sx={{ fontSize: "0.7rem", textTransform: "none" }}
+                    >
+                      Download
+                    </Button>
+                  </Box>
+                ))}
+              </Stack>
+            </Paper>
+          )}
+
+          {/* Decision */}
+          <Box>
+            <Typography sx={{ fontWeight: 600, mb: 1, fontSize: "0.85rem" }}>
+              Decision
+            </Typography>
+            <Stack direction="row" spacing={2} sx={{ mb: 2 }}>
+              <Button
+                variant={rejectionReason ? "outlined" : "contained"}
+                onClick={() => setRejectionReason("")}
+                fullWidth
+                sx={{
+                  bgcolor: !rejectionReason ? C.success : undefined,
+                  color: !rejectionReason ? "#fff" : C.success,
+                  borderColor: C.success,
+                  textTransform: "none",
+                  "&:hover": {
+                    bgcolor: !rejectionReason ? alpha(C.success, 0.8) : undefined,
+                  },
+                }}
+              >
+                Approve
+              </Button>
+              <Button
+                variant={rejectionReason ? "contained" : "outlined"}
+                onClick={() => setRejectionReason("This request does not meet our current requirements.")}
+                fullWidth
+                sx={{
+                  bgcolor: rejectionReason ? C.error : undefined,
+                  color: rejectionReason ? "#fff" : C.error,
+                  borderColor: C.error,
+                  textTransform: "none",
+                  "&:hover": {
+                    bgcolor: rejectionReason ? alpha(C.error, 0.8) : undefined,
+                  },
+                }}
+              >
+                Reject
+              </Button>
+            </Stack>
+
+            {rejectionReason && (
+              <TextField
+                fullWidth
+                multiline
+                rows={3}
+                label="Rejection Reason *"
+                value={rejectionReason}
+                onChange={(e) => setRejectionReason(e.target.value)}
+                placeholder="Please provide a reason for rejecting this request..."
+                required
+                error={!rejectionReason.trim()}
+                helperText={!rejectionReason.trim() ? "Rejection reason is required" : ""}
+                sx={{ mt: 1 }}
+              />
+            )}
+          </Box>
+        </Stack>
+      </DialogContent>
+      <DialogActions sx={{ px: 3, py: 2, gap: 1 }}>
+        <Button
+          onClick={onClose}
+          disabled={loading}
+          variant="outlined"
+          size="small"
+          sx={{ borderRadius: 2, textTransform: "none", px: 3 }}
+        >
+          Cancel
+        </Button>
+        <Button
+          onClick={() => handleReview(rejectionReason ? "rejected" : "approved")}
+          disabled={loading || (rejectionReason && !rejectionReason.trim())}
+          variant="contained"
+          size="small"
+          startIcon={loading ? <CircularProgress size={16} /> : <SendIcon />}
+          sx={{
+            bgcolor: rejectionReason ? C.error : C.success,
+            borderRadius: 2,
+            textTransform: "none",
+            fontWeight: 600,
+            px: 3,
+            "&:hover": {
+              bgcolor: rejectionReason ? alpha(C.error, 0.8) : alpha(C.success, 0.8),
+            },
+          }}
+        >
+          {loading
+            ? "Processing..."
+            : rejectionReason
+              ? "Reject Request"
+              : "Approve Request"}
+        </Button>
+      </DialogActions>
+    </Dialog>
+  );
+}
+
 // ─── Main Page ────────────────────────────────────────────────────────────────
 const DEFAULT_FILTERS = {
   search: "",
@@ -1565,11 +1819,11 @@ export default function ChecklistPage() {
               "Content-Type": "application/json",
             },
             withCredentials: true,
-          },
+          }
         );
         const allUsers = response.data?.clients || response.data?.users || [];
         adminsData = allUsers.filter(
-          (u) => u.role === "admin" || u.role === "super_admin",
+          (u) => u.role === "admin" || u.role === "super_admin"
         );
       } catch (err) {
         console.error("Admin fetch failed:", err);
@@ -1714,7 +1968,7 @@ export default function ChecklistPage() {
         });
       } else setRequests([]);
     },
-    [getAllRequests, filters],
+    [getAllRequests, filters]
   );
 
   useEffect(() => {
@@ -1747,10 +2001,6 @@ export default function ChecklistPage() {
   const handleAssignClick = (checklist) => {
     setSelectedChecklist(checklist);
     setAssignSelectionOpen(true);
-  };
-
-  const handleViewDetails = (checklist) => {
-    navigate(`/admin/checklists/${checklist._id}`);
   };
 
   const handleAssignToAdmin = () => {
@@ -1811,19 +2061,20 @@ export default function ChecklistPage() {
       const result = await submitRequest(formData);
       if (result.success) {
         setSubmitDialogOpen(false);
-        showToast("Request submitted!");
+        showToast("Request submitted successfully!");
         fetchStats();
         fetchRequests();
       } else {
-        showToast(result.error || "Failed", "error");
+        showToast(result.error || "Failed to submit request", "error");
       }
-    } catch {
-      showToast("Unexpected error", "error");
+    } catch (error) {
+      showToast("Unexpected error occurred", "error");
     } finally {
       setSubmitLoading(false);
     }
   };
 
+  // Fixed: Handle review request with proper parameters
   const handleReviewRequest = async (action, rejectionReason = null) => {
     if (!reviewDialog.request) return;
     setReviewLoading(true);
@@ -1831,19 +2082,19 @@ export default function ChecklistPage() {
       const result = await reviewRequest(
         reviewDialog.request._id,
         action,
-        rejectionReason,
+        rejectionReason
       );
       if (result.success) {
         setReviewDialog({ open: false, request: null });
-        setViewDialog({ open: false, request: null });
         showToast(`Request ${action.replace(/_/g, " ")} successfully!`);
         fetchStats();
         fetchRequests();
       } else {
-        showToast(result.error || "Failed", "error");
+        showToast(result.error || "Failed to process request", "error");
       }
-    } catch {
-      showToast("Unexpected error", "error");
+    } catch (error) {
+      console.error("Review error:", error);
+      showToast("Unexpected error occurred", "error");
     } finally {
       setReviewLoading(false);
     }
@@ -1857,15 +2108,15 @@ export default function ChecklistPage() {
       if (result.success) {
         setDeleteReqDialog({ open: false, request: null, loading: false });
         setViewDialog({ open: false, request: null });
-        showToast("Request deleted!");
+        showToast("Request deleted successfully!");
         fetchStats();
         fetchRequests();
       } else {
-        showToast(result.error || "Failed", "error");
+        showToast(result.error || "Failed to delete request", "error");
         setDeleteReqDialog((p) => ({ ...p, loading: false }));
       }
-    } catch {
-      showToast("Unexpected error", "error");
+    } catch (error) {
+      showToast("Unexpected error occurred", "error");
       setDeleteReqDialog((p) => ({ ...p, loading: false }));
     }
   };
@@ -1876,10 +2127,10 @@ export default function ChecklistPage() {
     const result = await deleteChecklist(deleteChecklistDialog.item._id);
     if (result.success) {
       setDeleteChecklistDialog({ open: false, item: null, loading: false });
-      showToast("Checklist deleted");
+      showToast("Checklist deleted successfully");
       fetchChecklists();
     } else {
-      showToast(result.error || "Failed", "error");
+      showToast(result.error || "Failed to delete checklist", "error");
       setDeleteChecklistDialog((p) => ({ ...p, loading: false }));
     }
   };
@@ -2530,7 +2781,7 @@ export default function ChecklistPage() {
                                   day: "2-digit",
                                   month: "short",
                                   year: "numeric",
-                                },
+                                }
                               )
                             : "—"}
                         </TableCell>
@@ -2553,7 +2804,7 @@ export default function ChecklistPage() {
                               )}
                             {isSuperAdmin &&
                               ["pending", "under_review"].includes(
-                                row.status,
+                                row.status
                               ) && (
                                 <ActionBtn
                                   title="Review"
@@ -2619,7 +2870,7 @@ export default function ChecklistPage() {
         </>
       )}
 
-      {/* Dialogs */}
+      {/* ─── Dialogs ─────────────────────────────────────────────────────────── */}
       <CreateChecklistModal
         open={createOpen}
         onClose={() => setCreateOpen(false)}
@@ -2665,7 +2916,16 @@ export default function ChecklistPage() {
         loading={submitLoading}
       />
 
-      {/* Delete Checklist Confirm Dialog */}
+      {/* Review Request Dialog */}
+      <ReviewRequestDialog
+        open={reviewDialog.open}
+        onClose={() => setReviewDialog({ open: false, request: null })}
+        request={reviewDialog.request}
+        onReview={handleReviewRequest}
+        loading={reviewLoading}
+      />
+
+      {/* Delete Checklist Confirm */}
       <Dialog
         open={deleteChecklistDialog.open}
         onClose={() =>
@@ -2727,6 +2987,68 @@ export default function ChecklistPage() {
             }}
           >
             {deleteChecklistDialog.loading ? "Deleting..." : "Delete"}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Delete Request Confirm */}
+      <Dialog
+        open={deleteReqDialog.open}
+        onClose={() =>
+          setDeleteReqDialog({ open: false, request: null, loading: false })
+        }
+        maxWidth="xs"
+        fullWidth
+        PaperProps={{ sx: { borderRadius: 3 } }}
+      >
+        <DialogTitle
+          sx={{
+            bgcolor: alpha(C.error, 0.06),
+            color: C.error,
+            fontWeight: 700,
+            fontSize: "1rem",
+          }}
+        >
+          Delete Request
+        </DialogTitle>
+        <DialogContent sx={{ pt: 2 }}>
+          <Typography sx={{ fontSize: "0.88rem" }}>
+            Are you sure you want to delete the request for{" "}
+            <strong>{deleteReqDialog.request?.checklistName}</strong>? This
+            action cannot be undone.
+          </Typography>
+        </DialogContent>
+        <DialogActions sx={{ px: 3, py: 2, gap: 1 }}>
+          <Button
+            onClick={() =>
+              setDeleteReqDialog({ open: false, request: null, loading: false })
+            }
+            variant="outlined"
+            size="small"
+            sx={{ borderRadius: 2, textTransform: "none" }}
+          >
+            Cancel
+          </Button>
+          <Button
+            onClick={handleDeleteRequest}
+            disabled={deleteReqDialog.loading}
+            variant="contained"
+            size="small"
+            startIcon={
+              deleteReqDialog.loading ? (
+                <CircularProgress size={16} />
+              ) : (
+                <DeleteIcon />
+              )
+            }
+            sx={{
+              bgcolor: C.error,
+              borderRadius: 2,
+              textTransform: "none",
+              fontWeight: 600,
+            }}
+          >
+            {deleteReqDialog.loading ? "Deleting..." : "Delete"}
           </Button>
         </DialogActions>
       </Dialog>

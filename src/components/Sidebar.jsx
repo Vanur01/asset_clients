@@ -136,13 +136,6 @@ const navItemsConfig = {
       roles: ["super_admin", "admin"],
     },
     {
-      id: "contact-inquiries",
-      icon: EmailOutlinedIcon, 
-      label: "Contact Inquiries",
-      path: "/admin/contact-inquiries",
-      roles: ["super_admin"],
-    },
-    {
       id: "clients",
       icon: GroupOutlinedIcon,
       label: "Clients Management",
@@ -154,7 +147,7 @@ const navItemsConfig = {
       icon: PeopleAltOutlinedIcon,
       label: "Team Management",
       path: "/admin/team",
-      roles: ["admin", "super_admin"],
+      roles: ["admin"],
     },
     {
       id: "checklists",
@@ -183,6 +176,13 @@ const navItemsConfig = {
       label: "Reports and Analysis",
       path: "/admin/reports",
       roles: ["super_admin", "admin", "team"],
+    },
+    {
+      id: "contact-inquiries",
+      icon: EmailOutlinedIcon,
+      label: "Contact Inquiries",
+      path: "/admin/contact-inquiries",
+      roles: ["super_admin"],
     },
   ],
   team: [

@@ -446,7 +446,7 @@ export default function App() {
           <Route
             path="/admin/assets/add"
             element={
-              <ProtectedRoute allowedRoles={["admin", "super_admin", "team"]}>
+              <ProtectedRoute allowedRoles={["admin", "team"]}>
                 <DashboardLayout>
                   <AssetWithTeamProviderWrapper>
                     <AddNewAsset />

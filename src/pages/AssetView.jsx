@@ -444,7 +444,7 @@ export default function AssetView() {
     const primary =
       asset.assetImages.find((img) => img.isPrimary) || asset.assetImages[0];
     if (!primary?.name) return null;
-    return `https://assset-management-backend-4.onrender.com/uploads/assets/${primary.name}`;
+    return `http://localhost:9001/uploads/assets/${primary.name}`;
   };
 
   const getLastInspection = () => {
@@ -671,7 +671,7 @@ export default function AssetView() {
                       }}
                     >
                       <img
-                        src={`https://assset-management-backend-4.onrender.com/uploads/assets/${img.name}`}
+                        src={`http://localhost:9001/uploads/assets/${img.name}`}
                         alt={`Thumbnail ${idx + 1}`}
                         style={{
                           width: "100%",

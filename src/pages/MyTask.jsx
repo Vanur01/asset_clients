@@ -1,3 +1,5 @@
+// MyTasks.jsx - Fixed Version
+
 import { useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import {
@@ -951,8 +953,20 @@ export default function MyTasks() {
   const navigate = useNavigate();
   const [view, setView] = useState("list");
 
+  // FIXED: Properly navigate to task details page with the assignment ID
   const handleStart = useCallback(
-    (task) => navigate(`/task-details/${task.id}`, { state: { task } }),
+    (task) => {
+      // Get the assignment ID from the task object
+      const assignmentId = task.id || task.assignmentId || task._id;
+      
+      if (!assignmentId) {
+        console.error("No assignment ID found in task:", task);
+        return;
+      }
+      
+      // Navigate to task details page with the assignment ID as URL parameter
+      navigate(`/team/task-details/${assignmentId}`);
+    },
     [navigate],
   );
 

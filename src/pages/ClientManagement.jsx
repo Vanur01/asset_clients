@@ -1,4 +1,5 @@
-// pages/ClientManagement.tsx - Fully Responsive for All Devices
+// pages/ClientManagement.tsx - Website and Notes Made Optional
+
 import React, {
   useState,
   useEffect,
@@ -39,6 +40,8 @@ import {
   Zoom,
   TablePagination,
   alpha,
+  InputAdornment,
+  FormHelperText,
 } from "@mui/material";
 import {
   Search as SearchIcon,
@@ -59,6 +62,15 @@ import {
   Cancel as CancelIcon,
   ErrorOutline as ErrorOutlineIcon,
   Inbox as InboxIcon,
+  Email as EmailIcon,
+  Phone as PhoneIcon,
+  Language as LanguageIcon,
+  VpnKey as VpnKeyIcon,
+  CalendarToday as CalendarIcon,
+  People as PeopleIcon,
+  CheckCircle as CheckIcon,
+  Description as DescriptionIcon,
+  BusinessCenter as BusinessCenterIcon,
 } from "@mui/icons-material";
 import { useNavigate } from "react-router-dom";
 import { useClient } from "../context/ClientContext";
@@ -66,6 +78,7 @@ import { useClient } from "../context/ClientContext";
 // ─── Color palette ──────────────────────────────────────────────────────────
 const C = {
   primary: "#0d4a5c",
+  primaryDark: "#0a3a49",
   primaryLight: "#e6f0f3",
   success: "#2e7d32",
   successLight: "#e8f5e9",
@@ -77,6 +90,115 @@ const C = {
   card: "#ffffff",
   border: "#e2e8f0",
   text: { primary: "#1e293b", secondary: "#475569", disabled: "#94a3b8" },
+};
+
+// ─── Validation Functions ───────────────────────────────────────────
+const validateCustomerName = (name) => {
+  if (!name || !name.trim()) return "Customer name is required";
+  if (name.trim().length < 2) return "Name must be at least 2 characters";
+  if (name.trim().length > 100) return "Name must be less than 100 characters";
+  if (!/^[a-zA-Z\s\-'.]+$/.test(name.trim()))
+    return "Name can only contain letters, spaces, hyphens, and apostrophes";
+  return "";
+};
+
+const validateEmail = (email) => {
+  if (!email) return "Email is required";
+  const emailRegex = /^[^\s@]+@([^\s@.,]+\.)+[^\s@.,]{2,}$/;
+  if (!emailRegex.test(email))
+    return "Please enter a valid email address (e.g., name@company.com)";
+  if (email.length > 255) return "Email must be less than 255 characters";
+  return "";
+};
+
+const validatePassword = (password) => {
+  if (!password) return "Password is required";
+  if (password.length < 8) return "Password must be at least 8 characters";
+  if (password.length > 50) return "Password must be less than 50 characters";
+  if (!/[A-Z]/.test(password))
+    return "Password must contain at least one uppercase letter";
+  if (!/[a-z]/.test(password))
+    return "Password must contain at least one lowercase letter";
+  if (!/[0-9]/.test(password))
+    return "Password must contain at least one number";
+  if (!/[!@#$%^&*(),.?":{}|<>]/.test(password))
+    return "Password must contain at least one special character";
+  if (/\s/.test(password)) return "Password cannot contain spaces";
+  return "";
+};
+
+const validateDuration = (duration) => {
+  if (!duration && duration !== 0) return "Duration is required";
+  const days = parseInt(duration);
+  if (isNaN(days)) return "Duration must be a valid number";
+  if (days < 1) return "Duration must be at least 1 day";
+  if (days > 365) return "Duration cannot exceed 365 days";
+  if (!Number.isInteger(days)) return "Duration must be a whole number";
+  return "";
+};
+
+const validateExtendDays = (extendDays) => {
+  if (!extendDays && extendDays !== 0) return "Extend days is required";
+  const days = parseInt(extendDays);
+  if (isNaN(days)) return "Extend days must be a valid number";
+  if (days < 0) return "Extend days cannot be negative";
+  if (days > 365) return "Cannot extend more than 365 days";
+  if (!Number.isInteger(days)) return "Extend days must be a whole number";
+  return "";
+};
+
+const validateLicenseLimit = (limit) => {
+  if (!limit && limit !== 0) return "License limit is required";
+  const numLimit = parseInt(limit);
+  if (isNaN(numLimit)) return "License limit must be a valid number";
+  if (numLimit < 1) return "License limit must be at least 1";
+  if (numLimit > 10000) return "License limit cannot exceed 10,000";
+  if (!Number.isInteger(numLimit))
+    return "License limit must be a whole number";
+  return "";
+};
+
+const validatePhoneNumber = (phone) => {
+  if (!phone) return "Phone number is required";
+  // International phone number format with better validation
+  const phoneRegex =
+    /^[\+]?[(]?[0-9]{1,4}[)]?[-\s\.]?[(]?[0-9]{1,4}[)]?[-\s\.]?[0-9]{1,5}[-\s\.]?[0-9]{1,5}$/;
+  if (!phoneRegex.test(phone))
+    return "Please enter a valid phone number (e.g., +1 555 123 4567)";
+  if (phone.replace(/[\s\-\(\)\+]/g, "").length < 10)
+    return "Phone number must have at least 10 digits";
+  if (phone.replace(/[\s\-\(\)\+]/g, "").length > 15)
+    return "Phone number is too long";
+  return "";
+};
+
+// Updated: Website validation - made optional
+const validateWebsite = (website) => {
+  if (!website || !website.trim()) return ""; // Optional field
+  const urlRegex =
+    /^(https?:\/\/)?([\da-z\.-]+)\.([a-z\.]{2,6})([\/\w \.-]*)*\/?$/i;
+  if (!urlRegex.test(website))
+    return "Please enter a valid URL (e.g., https://example.com)";
+  if (website.length > 200)
+    return "Website URL must be less than 200 characters";
+  return "";
+};
+
+// Updated: Notes validation - made optional
+const validateNotes = (notes) => {
+  if (!notes || !notes.trim()) return ""; // Optional field
+  if (notes.trim().length < 5) return "Notes must be at least 5 characters if provided";
+  if (notes.trim().length > 1000)
+    return "Notes must be less than 1000 characters";
+  return "";
+};
+
+const validateMembershipPlan = (plan) => {
+  if (!plan) return "Membership plan is required";
+  const validPlans = ["free", "standard", "premium", "enterprise"];
+  if (!validPlans.includes(plan.toLowerCase()))
+    return "Please select a valid membership plan";
+  return "";
 };
 
 const getInitials = (name = "") =>
@@ -684,6 +806,7 @@ export default function ClientManagement() {
     message: "",
     severity: "success",
   });
+  const [touchedFields, setTouchedFields] = useState({});
 
   const searchTimeoutRef = useRef(null);
 
@@ -740,40 +863,212 @@ export default function ClientManagement() {
   const handleInput = (e) => {
     const { name, value } = e.target;
     setFormData((p) => ({ ...p, [name]: value }));
-    setFormErrors((p) => ({ ...p, [name]: "" }));
+    if (touchedFields[name]) {
+      validateField(name, value);
+    }
+  };
+
+  const handleFieldBlur = (fieldName) => {
+    setTouchedFields((prev) => ({ ...prev, [fieldName]: true }));
+    validateField(fieldName, formData[fieldName]);
+  };
+
+  const validateField = (fieldName, value) => {
+    let error = "";
+    switch (fieldName) {
+      case "customerName":
+        error = validateCustomerName(value);
+        break;
+      case "email":
+        error = validateEmail(value);
+        break;
+      case "password":
+        if (modalMode === "add") error = validatePassword(value);
+        break;
+      case "duration":
+        if (modalMode === "add") error = validateDuration(value);
+        break;
+      case "extendDays":
+        if (modalMode === "edit") error = validateExtendDays(value);
+        break;
+      case "licenseLimit":
+        error = validateLicenseLimit(value);
+        break;
+      case "phone":
+        error = validatePhoneNumber(value);
+        break;
+      case "website":
+        error = validateWebsite(value);
+        break;
+      case "notes":
+        error = validateNotes(value);
+        break;
+      case "membershipPlan":
+        error = validateMembershipPlan(value);
+        break;
+      default:
+        break;
+    }
+    setFormErrors((prev) => ({ ...prev, [fieldName]: error }));
+    return error === "";
   };
 
   const validateForm = () => {
-    const errs = {};
-    if (!formData.customerName.trim())
-      errs.customerName = "Customer name is required";
-    if (!formData.email.trim()) errs.email = "Email is required";
-    else if (!/\S+@\S+\.\S+/.test(formData.email)) errs.email = "Invalid email";
-    if (
-      modalMode === "add" &&
-      (!formData.duration || parseInt(formData.duration) < 1)
-    )
-      errs.duration = "Duration must be ≥ 1";
-    if (!formData.licenseLimit || parseInt(formData.licenseLimit) < 1)
-      errs.licenseLimit = "License limit must be ≥ 1";
-    setFormErrors(errs);
-    return Object.keys(errs).length === 0;
+    const errors = {};
+    let isValid = true;
+
+    // Validate ALL fields for Add Mode
+    if (modalMode === "add") {
+      const nameError = validateCustomerName(formData.customerName);
+      if (nameError) {
+        errors.customerName = nameError;
+        isValid = false;
+      }
+
+      const emailError = validateEmail(formData.email);
+      if (emailError) {
+        errors.email = emailError;
+        isValid = false;
+      }
+
+      const passwordError = validatePassword(formData.password);
+      if (passwordError) {
+        errors.password = passwordError;
+        isValid = false;
+      }
+
+      const planError = validateMembershipPlan(formData.membershipPlan);
+      if (planError) {
+        errors.membershipPlan = planError;
+        isValid = false;
+      }
+
+      const durationError = validateDuration(formData.duration);
+      if (durationError) {
+        errors.duration = durationError;
+        isValid = false;
+      }
+
+      const licenseError = validateLicenseLimit(formData.licenseLimit);
+      if (licenseError) {
+        errors.licenseLimit = licenseError;
+        isValid = false;
+      }
+
+      const phoneError = validatePhoneNumber(formData.phone);
+      if (phoneError) {
+        errors.phone = phoneError;
+        isValid = false;
+      }
+
+      // Website is optional - only validate if provided
+      const websiteError = validateWebsite(formData.website);
+      if (websiteError) {
+        errors.website = websiteError;
+        isValid = false;
+      }
+
+      // Notes is optional - only validate if provided
+      const notesError = validateNotes(formData.notes);
+      if (notesError) {
+        errors.notes = notesError;
+        isValid = false;
+      }
+    }
+
+    // Validate ALL fields for Edit Mode
+    if (modalMode === "edit") {
+      const nameError = validateCustomerName(formData.customerName);
+      if (nameError) {
+        errors.customerName = nameError;
+        isValid = false;
+      }
+
+      const planError = validateMembershipPlan(formData.membershipPlan);
+      if (planError) {
+        errors.membershipPlan = planError;
+        isValid = false;
+      }
+
+      const extendDaysError = validateExtendDays(formData.extendDays);
+      if (extendDaysError) {
+        errors.extendDays = extendDaysError;
+        isValid = false;
+      }
+
+      const licenseError = validateLicenseLimit(formData.licenseLimit);
+      if (licenseError) {
+        errors.licenseLimit = licenseError;
+        isValid = false;
+      }
+
+      const phoneError = validatePhoneNumber(formData.phone);
+      if (phoneError) {
+        errors.phone = phoneError;
+        isValid = false;
+      }
+
+      // Website is optional - only validate if provided
+      const websiteError = validateWebsite(formData.website);
+      if (websiteError) {
+        errors.website = websiteError;
+        isValid = false;
+      }
+
+      // Notes is optional - only validate if provided
+      const notesError = validateNotes(formData.notes);
+      if (notesError) {
+        errors.notes = notesError;
+        isValid = false;
+      }
+    }
+
+    setFormErrors(errors);
+    return isValid;
   };
 
   const handleSubmit = async () => {
-    if (!validateForm()) return;
+    if (!validateForm()) {
+      // Mark all required fields as touched to show errors
+      const allFields = {};
+      if (modalMode === "add") {
+        allFields.customerName = true;
+        allFields.email = true;
+        allFields.password = true;
+        allFields.membershipPlan = true;
+        allFields.duration = true;
+        allFields.licenseLimit = true;
+        allFields.phone = true;
+        // website and notes are optional - don't mark them as required
+        // allFields.website = true;
+        // allFields.notes = true;
+      } else {
+        allFields.customerName = true;
+        allFields.membershipPlan = true;
+        allFields.extendDays = true;
+        allFields.licenseLimit = true;
+        allFields.phone = true;
+        // website and notes are optional - don't mark them as required
+        // allFields.website = true;
+        // allFields.notes = true;
+      }
+      setTouchedFields(allFields);
+      showToast("Please fill in all required fields correctly", "error");
+      return;
+    }
+
     try {
       if (modalMode === "add") {
         await addClient({
           customerName: formData.customerName.trim(),
           email: formData.email.trim().toLowerCase(),
-          password: formData.password || undefined,
+          password: formData.password,
           membershipPlan: formData.membershipPlan,
           duration: parseInt(formData.duration),
           licenseLimit: parseInt(formData.licenseLimit),
-          phone: formData.phone,
-          website: formData.website,
-          notes: formData.notes,
+          phone: formData.phone.trim(),
+          website: formData.website ? formData.website.trim() : "",
+          notes: formData.notes ? formData.notes.trim() : "",
         });
         showToast("Client created successfully!");
       } else {
@@ -782,14 +1077,16 @@ export default function ClientManagement() {
           membershipPlan: formData.membershipPlan,
           extendDays: parseInt(formData.extendDays) || 0,
           licenseLimit: parseInt(formData.licenseLimit),
-          phone: formData.phone,
-          website: formData.website,
-          notes: formData.notes,
+          phone: formData.phone.trim(),
+          website: formData.website ? formData.website.trim() : "",
+          notes: formData.notes ? formData.notes.trim() : "",
         });
         showToast("Client updated successfully");
       }
       setOpenModal(false);
       setFormData(EMPTY_FORM);
+      setFormErrors({});
+      setTouchedFields({});
     } catch (error) {
       showToast(error.message || "An error occurred", "error");
     }
@@ -811,6 +1108,7 @@ export default function ClientManagement() {
     setModalMode("add");
     setFormData(EMPTY_FORM);
     setFormErrors({});
+    setTouchedFields({});
     setOpenModal(true);
   };
 
@@ -828,6 +1126,7 @@ export default function ClientManagement() {
       notes: client.notes || "",
     });
     setFormErrors({});
+    setTouchedFields({});
     setModalMode("edit");
     setOpenModal(true);
   };
@@ -879,6 +1178,21 @@ export default function ClientManagement() {
         filters.membershipPlan.slice(1);
   const hasActiveFilters =
     filters.status !== "all" || filters.membershipPlan !== "all" || searchTerm;
+
+  // Password strength indicator
+  const getPasswordStrength = (password) => {
+    if (!password) return { strength: 0, label: "", color: "" };
+    let strength = 0;
+    if (password.length >= 8) strength++;
+    if (/[A-Z]/.test(password)) strength++;
+    if (/[a-z]/.test(password)) strength++;
+    if (/[0-9]/.test(password)) strength++;
+    if (/[!@#$%^&*(),.?":{}|<>]/.test(password)) strength++;
+
+    if (strength <= 2) return { strength, label: "Weak", color: C.error };
+    if (strength <= 4) return { strength, label: "Medium", color: C.warning };
+    return { strength, label: "Strong", color: C.success };
+  };
 
   // Show error state
   if (error && !initialLoading) {
@@ -976,7 +1290,7 @@ export default function ClientManagement() {
                 sx={{
                   color: C.text.disabled,
                   fontSize: { xs: "1rem", sm: "1.1rem" },
-                  flexShrink: 0
+                  flexShrink: 0,
                 }}
               />
               <TextField
@@ -1259,7 +1573,7 @@ export default function ClientManagement() {
         ))}
       </Menu>
 
-      {/* Add/Edit Modal - Modern Alternative Design */}
+      {/* Add/Edit Modal */}
       <Modal
         open={openModal}
         onClose={() => setOpenModal(false)}
@@ -1275,31 +1589,22 @@ export default function ClientManagement() {
         <Fade in={openModal}>
           <Box
             sx={{
-              width: { xs: "100%", sm: 560, md: 640, lg: 720 },
-              height:"90vh",
+              width: { xs: "100%", sm: 650, md: 750, lg: 850 },
               maxWidth: "calc(100vw - 32px)",
+              maxHeight: "90vh",
               bgcolor: "background.paper",
-              borderRadius: { xs: 1, sm: 2, md: 2 },
+              borderRadius: { xs: 2, sm: 3 },
               boxShadow: "0 20px 35px -10px rgba(0,0,0,0.15)",
               position: "relative",
               outline: "none",
-              animation: "slideUp 0.3s ease-out",
-              "@keyframes slideUp": {
-                from: {
-                  opacity: 0,
-                  transform: "translateY(30px)",
-                },
-                to: {
-                  opacity: 1,
-                  transform: "translateY(0)",
-                },
-              },
+              display: "flex",
+              flexDirection: "column",
             }}
           >
             {/* Gradient Header */}
             <Box
               sx={{
-                background: `linear-gradient(135deg, ${C.primary} 0%, ${C.primaryDark || "#0b3f4f"} 100%)`,
+                background: `linear-gradient(135deg, ${C.primary} 0%, ${C.primaryDark} 100%)`,
                 borderRadius: {
                   xs: "8px 8px 0 0",
                   sm: "12px 12px 0 0",
@@ -1308,6 +1613,7 @@ export default function ClientManagement() {
                 p: { xs: 2, sm: 2.5, md: 3 },
                 position: "relative",
                 color: "white",
+                flexShrink: 0,
               }}
             >
               <Typography
@@ -1331,8 +1637,8 @@ export default function ClientManagement() {
                 }}
               >
                 {modalMode === "add"
-                  ? "Fill in the details to create a new customer account"
-                  : "Update customer information and manage subscription"}
+                  ? "Please fill in all required fields below. Website and notes are optional."
+                  : "Update customer information. Website and notes are optional."}
               </Typography>
 
               <IconButton
@@ -1344,9 +1650,7 @@ export default function ClientManagement() {
                   top: { xs: 12, sm: 16, md: 20 },
                   color: "white",
                   bgcolor: "rgba(255,255,255,0.1)",
-                  "&:hover": {
-                    bgcolor: "rgba(255,255,255,0.2)",
-                  },
+                  "&:hover": { bgcolor: "rgba(255,255,255,0.2)" },
                 }}
               >
                 <CloseIcon sx={{ fontSize: { xs: "1rem", sm: "1.125rem" } }} />
@@ -1357,14 +1661,9 @@ export default function ClientManagement() {
             <Box
               sx={{
                 p: { xs: 2, sm: 2.5, md: 3.5 },
-                maxHeight: {
-                  xs: "calc(90vh - 100px)",
-                  sm: "calc(90vh - 120px)",
-                },
                 overflowY: "auto",
-                "&::-webkit-scrollbar": {
-                  width: "6px",
-                },
+                flex: 1,
+                "&::-webkit-scrollbar": { width: "6px" },
                 "&::-webkit-scrollbar-track": {
                   bgcolor: "#f1f1f1",
                   borderRadius: "10px",
@@ -1372,96 +1671,200 @@ export default function ClientManagement() {
                 "&::-webkit-scrollbar-thumb": {
                   bgcolor: "#c1c1c1",
                   borderRadius: "10px",
-                  "&:hover": {
-                    bgcolor: "#a8a8a8",
-                  },
+                  "&:hover": { bgcolor: "#a8a8a8" },
                 },
               }}
             >
               <Stack spacing={{ xs: 2, sm: 2.5, md: 3 }}>
-                {/* Two Column Layout - Responsive Grid */}
+                {/* Required Fields Indicator */}
+                <Alert
+                  severity="info"
+                  icon={<CheckCircleIcon />}
+                  sx={{ borderRadius: 2 }}
+                >
+                  <Typography variant="caption">
+                    Fields marked with{" "}
+                    <span style={{ color: C.error }}>*</span> are required. 
+                    Website and Notes are optional.
+                  </Typography>
+                </Alert>
+
+                {/* Customer Basic Information */}
+                <Typography
+                  variant="subtitle2"
+                  sx={{ fontWeight: 700, color: C.primary, mb: -1 }}
+                >
+                  Basic Information
+                </Typography>
+
                 <Grid container spacing={{ xs: 1.5, sm: 2, md: 2.5 }}>
                   <Grid item xs={12} sm={6}>
                     <TextField
-                      label="Customer Name"
+                      label="Customer Name *"
                       name="customerName"
                       value={formData.customerName}
                       onChange={handleInput}
+                      onBlur={() => handleFieldBlur("customerName")}
                       size="small"
                       fullWidth
                       required
-                      error={!!formErrors.customerName}
-                      helperText={formErrors.customerName}
-                      sx={{
-                        "& .MuiInputLabel-root": {
-                          fontSize: { xs: "0.75rem", sm: "0.875rem" },
-                        },
-                        "& .MuiInputBase-root": {
-                          fontSize: { xs: "0.875rem", sm: "1rem" },
-                        },
+                      error={
+                        !!formErrors.customerName && touchedFields.customerName
+                      }
+                      helperText={
+                        touchedFields.customerName && formErrors.customerName
+                      }
+                      InputProps={{
+                        startAdornment: (
+                          <InputAdornment position="start">
+                            <PersonIcon
+                              sx={{ fontSize: "1rem", color: C.text.disabled }}
+                            />
+                          </InputAdornment>
+                        ),
                       }}
                     />
                   </Grid>
                   <Grid item xs={12} sm={6}>
                     <TextField
-                      label="Email Address"
+                      label="Email Address *"
                       name="email"
                       type="email"
                       value={formData.email}
                       onChange={handleInput}
+                      onBlur={() => handleFieldBlur("email")}
                       size="small"
                       fullWidth
                       required
                       disabled={modalMode === "edit"}
-                      error={!!formErrors.email}
-                      helperText={formErrors.email}
-                      sx={{
-                        "& .MuiInputLabel-root": {
-                          fontSize: { xs: "0.75rem", sm: "0.875rem" },
-                        },
+                      error={!!formErrors.email && touchedFields.email}
+                      helperText={touchedFields.email && formErrors.email}
+                      InputProps={{
+                        startAdornment: (
+                          <InputAdornment position="start">
+                            <EmailIcon
+                              sx={{ fontSize: "1rem", color: C.text.disabled }}
+                            />
+                          </InputAdornment>
+                        ),
                       }}
                     />
                   </Grid>
                 </Grid>
 
-                {/* Conditional Password Field */}
+                {/* Password Field (Add Mode Only) */}
                 {modalMode === "add" && (
-                  <TextField
-                    label="Temporary Password"
-                    name="password"
-                    type="password"
-                    value={formData.password}
-                    onChange={handleInput}
-                    size="small"
-                    fullWidth
-                    required
-                    error={!!formErrors.password}
-                    helperText={
-                      formErrors.password || "Client will need this to login"
-                    }
-                    sx={{
-                      "& .MuiInputLabel-root": {
-                        fontSize: { xs: "0.75rem", sm: "0.875rem" },
-                      },
-                    }}
-                  />
+                  <Box>
+                    <TextField
+                      label="Password *"
+                      name="password"
+                      type="password"
+                      value={formData.password}
+                      onChange={handleInput}
+                      onBlur={() => handleFieldBlur("password")}
+                      size="small"
+                      fullWidth
+                      required
+                      error={!!formErrors.password && touchedFields.password}
+                      helperText={touchedFields.password && formErrors.password}
+                      InputProps={{
+                        startAdornment: (
+                          <InputAdornment position="start">
+                            <VpnKeyIcon
+                              sx={{ fontSize: "1rem", color: C.text.disabled }}
+                            />
+                          </InputAdornment>
+                        ),
+                      }}
+                    />
+                    {formData.password && (
+                      <Box sx={{ mt: 1 }}>
+                        <Stack direction="row" alignItems="center" spacing={1}>
+                          <Box sx={{ flex: 1 }}>
+                            <LinearProgress
+                              variant="determinate"
+                              value={
+                                (getPasswordStrength(formData.password)
+                                  .strength /
+                                  5) *
+                                100
+                              }
+                              sx={{
+                                height: 4,
+                                borderRadius: 2,
+                                bgcolor: C.border,
+                                "& .MuiLinearProgress-bar": {
+                                  bgcolor: getPasswordStrength(
+                                    formData.password,
+                                  ).color,
+                                },
+                              }}
+                            />
+                          </Box>
+                          <Typography
+                            variant="caption"
+                            sx={{
+                              color: getPasswordStrength(formData.password)
+                                .color,
+                              fontWeight: 600,
+                            }}
+                          >
+                            {getPasswordStrength(formData.password).label}
+                          </Typography>
+                        </Stack>
+                        <Typography
+                          variant="caption"
+                          sx={{
+                            color: C.text.disabled,
+                            mt: 0.5,
+                            display: "block",
+                          }}
+                        >
+                          Password must contain: 8+ chars, uppercase, lowercase,
+                          number, special character
+                        </Typography>
+                      </Box>
+                    )}
+                  </Box>
                 )}
 
-                {/* Plan & Duration Section */}
+                {/* Subscription Details */}
+                <Typography
+                  variant="subtitle2"
+                  sx={{ fontWeight: 700, color: C.primary, mb: -1, mt: 1 }}
+                >
+                  Subscription Details
+                </Typography>
+
                 <Grid container spacing={{ xs: 1.5, sm: 2, md: 2.5 }}>
                   <Grid item xs={12} sm={6}>
-                    <FormControl fullWidth size="small">
-                      <InputLabel>Subscription Plan</InputLabel>
+                    <FormControl
+                      fullWidth
+                      size="small"
+                      required
+                      error={
+                        !!formErrors.membershipPlan &&
+                        touchedFields.membershipPlan
+                      }
+                    >
+                      <InputLabel>Subscription Plan *</InputLabel>
                       <Select
                         name="membershipPlan"
                         value={formData.membershipPlan}
                         onChange={handleInput}
-                        label="Subscription Plan"
-                        sx={{
-                          "& .MuiSelect-select": {
-                            fontSize: { xs: "0.875rem", sm: "1rem" },
-                          },
-                        }}
+                        onBlur={() => handleFieldBlur("membershipPlan")}
+                        label="Subscription Plan *"
+                        startAdornment={
+                          <InputAdornment position="start">
+                            <BusinessCenterIcon
+                              sx={{
+                                fontSize: "1rem",
+                                color: C.text.disabled,
+                                ml: 1,
+                              }}
+                            />
+                          </InputAdornment>
+                        }
                       >
                         {[
                           {
@@ -1511,12 +1914,20 @@ export default function ClientManagement() {
                           </MenuItem>
                         ))}
                       </Select>
+                      {touchedFields.membershipPlan &&
+                        formErrors.membershipPlan && (
+                          <FormHelperText error>
+                            {formErrors.membershipPlan}
+                          </FormHelperText>
+                        )}
                     </FormControl>
                   </Grid>
                   <Grid item xs={12} sm={6}>
                     <TextField
                       label={
-                        modalMode === "add" ? "Duration (Days)" : "Extend Days"
+                        modalMode === "add"
+                          ? "Duration (Days) *"
+                          : "Extend Days *"
                       }
                       name={modalMode === "add" ? "duration" : "extendDays"}
                       type="number"
@@ -1526,11 +1937,38 @@ export default function ClientManagement() {
                         ]
                       }
                       onChange={handleInput}
+                      onBlur={() =>
+                        handleFieldBlur(
+                          modalMode === "add" ? "duration" : "extendDays",
+                        )
+                      }
                       size="small"
                       fullWidth
-                      required={modalMode === "add"}
+                      required
+                      error={
+                        !!formErrors[
+                          modalMode === "add" ? "duration" : "extendDays"
+                        ] &&
+                        touchedFields[
+                          modalMode === "add" ? "duration" : "extendDays"
+                        ]
+                      }
+                      helperText={
+                        touchedFields[
+                          modalMode === "add" ? "duration" : "extendDays"
+                        ] &&
+                        formErrors[
+                          modalMode === "add" ? "duration" : "extendDays"
+                        ]
+                      }
                       InputProps={{
-                        inputProps: { min: 1, max: 365 },
+                        startAdornment: (
+                          <InputAdornment position="start">
+                            <CalendarIcon
+                              sx={{ fontSize: "1rem", color: C.text.disabled }}
+                            />
+                          </InputAdornment>
+                        ),
                         endAdornment: modalMode === "add" && (
                           <Typography
                             variant="caption"
@@ -1539,127 +1977,178 @@ export default function ClientManagement() {
                             days
                           </Typography>
                         ),
-                      }}
-                      helperText={
-                        modalMode === "edit" &&
-                        "Leave empty if no extension needed"
-                      }
-                      sx={{
-                        "& .MuiInputLabel-root": {
-                          fontSize: { xs: "0.75rem", sm: "0.875rem" },
-                        },
+                        inputProps: { min: 1, max: 365 },
                       }}
                     />
                   </Grid>
                 </Grid>
 
-                {/* License Limit with Visual Indicator */}
-                <Box>
-                  <TextField
-                    label="License Limit"
-                    name="licenseLimit"
-                    type="number"
-                    value={formData.licenseLimit}
-                    onChange={handleInput}
-                    size="small"
-                    fullWidth
-                    required
-                    error={!!formErrors.licenseLimit}
-                    helperText={
-                      formErrors.licenseLimit ||
-                      "Number of licenses for this client"
-                    }
-                    InputProps={{ inputProps: { min: 1 } }}
-                    sx={{
-                      "& .MuiInputLabel-root": {
-                        fontSize: { xs: "0.75rem", sm: "0.875rem" },
-                      },
-                    }}
-                  />
-                  {/* License visual meter - optional nice touch */}
-                  {formData.licenseLimit && formData.licenseLimit <= 10 && (
-                    <Box
-                      sx={{
-                        mt: 1,
-                        display: "flex",
-                        alignItems: "center",
-                        gap: 1,
-                      }}
-                    >
+                {/* License Information */}
+                <TextField
+                  label="License Limit *"
+                  name="licenseLimit"
+                  type="number"
+                  value={formData.licenseLimit}
+                  onChange={handleInput}
+                  onBlur={() => handleFieldBlur("licenseLimit")}
+                  size="small"
+                  fullWidth
+                  required
+                  error={
+                    !!formErrors.licenseLimit && touchedFields.licenseLimit
+                  }
+                  helperText={
+                    touchedFields.licenseLimit && formErrors.licenseLimit
+                  }
+                  InputProps={{
+                    startAdornment: (
+                      <InputAdornment position="start">
+                        <PeopleIcon
+                          sx={{ fontSize: "1rem", color: C.text.disabled }}
+                        />
+                      </InputAdornment>
+                    ),
+                    inputProps: { min: 1, max: 10000 },
+                  }}
+                />
+
+                {/* License Visual Meter */}
+                {formData.licenseLimit &&
+                  parseInt(formData.licenseLimit) <= 50 && (
+                    <Box sx={{ mt: -1 }}>
                       <LinearProgress
                         variant="determinate"
                         value={Math.min(
-                          (formData.licenseLimit / 50) * 100,
+                          (parseInt(formData.licenseLimit) / 50) * 100,
                           100,
                         )}
-                        sx={{ flex: 1, height: 4, borderRadius: 2 }}
+                        sx={{ height: 4, borderRadius: 2, bgcolor: C.border }}
                       />
                       <Typography
                         variant="caption"
-                        sx={{ color: "text.secondary" }}
+                        sx={{
+                          color: C.text.disabled,
+                          mt: 0.5,
+                          display: "block",
+                        }}
                       >
-                        Small plan
+                        {parseInt(formData.licenseLimit) <= 10
+                          ? "Small Business Plan"
+                          : "Growing Business Plan"}
                       </Typography>
                     </Box>
                   )}
-                </Box>
 
                 {/* Contact Information */}
+                <Typography
+                  variant="subtitle2"
+                  sx={{ fontWeight: 700, color: C.primary, mb: -1, mt: 1 }}
+                >
+                  Contact Information
+                </Typography>
+
                 <Grid container spacing={{ xs: 1.5, sm: 2, md: 2.5 }}>
                   <Grid item xs={12} sm={6}>
                     <TextField
-                      label="Phone Number"
+                      label="Phone Number *"
                       name="phone"
                       value={formData.phone}
                       onChange={handleInput}
+                      onBlur={() => handleFieldBlur("phone")}
                       size="small"
                       fullWidth
+                      required
                       placeholder="+1 (555) 000-0000"
-                      sx={{
-                        "& .MuiInputLabel-root": {
-                          fontSize: { xs: "0.75rem", sm: "0.875rem" },
-                        },
+                      error={!!formErrors.phone && touchedFields.phone}
+                      helperText={touchedFields.phone && formErrors.phone}
+                      InputProps={{
+                        startAdornment: (
+                          <InputAdornment position="start">
+                            <PhoneIcon
+                              sx={{ fontSize: "1rem", color: C.text.disabled }}
+                            />
+                          </InputAdornment>
+                        ),
                       }}
                     />
                   </Grid>
                   <Grid item xs={12} sm={6}>
                     <TextField
-                      label="Website"
+                      label="Website (Optional)"
                       name="website"
                       value={formData.website}
                       onChange={handleInput}
+                      onBlur={() => handleFieldBlur("website")}
                       size="small"
                       fullWidth
                       placeholder="https://example.com"
-                      sx={{
-                        "& .MuiInputLabel-root": {
-                          fontSize: { xs: "0.75rem", sm: "0.875rem" },
-                        },
+                      error={!!formErrors.website && touchedFields.website}
+                      helperText={touchedFields.website && formErrors.website}
+                      InputProps={{
+                        startAdornment: (
+                          <InputAdornment position="start">
+                            <LanguageIcon
+                              sx={{ fontSize: "1rem", color: C.text.disabled }}
+                            />
+                          </InputAdornment>
+                        ),
                       }}
                     />
                   </Grid>
                 </Grid>
 
-                {/* Notes Section */}
+                {/* Notes Section - Made Optional */}
                 <TextField
-                  label="Additional Notes"
+                  label="Additional Notes (Optional)"
                   name="notes"
                   multiline
                   rows={3}
                   value={formData.notes}
                   onChange={handleInput}
+                  onBlur={() => handleFieldBlur("notes")}
                   size="small"
                   fullWidth
-                  placeholder="Any special requirements, comments, or additional information..."
-                  sx={{
-                    "& .MuiInputLabel-root": {
-                      fontSize: { xs: "0.75rem", sm: "0.875rem" },
-                    },
-                    "& .MuiInputBase-root": {
-                      fontSize: { xs: "0.875rem", sm: "1rem" },
-                    },
+                  placeholder="Any additional information you'd like to add..."
+                  error={!!formErrors.notes && touchedFields.notes}
+                  helperText={touchedFields.notes && formErrors.notes}
+                  InputProps={{
+                    startAdornment: (
+                      <InputAdornment position="start">
+                        <DescriptionIcon
+                          sx={{ fontSize: "1rem", color: C.text.disabled }}
+                        />
+                      </InputAdornment>
+                    ),
                   }}
                 />
+
+                {/* Validation Summary */}
+                {Object.keys(formErrors).length > 0 &&
+                  Object.values(formErrors).some((err) => err) && (
+                    <Alert
+                      severity="error"
+                      icon={<ErrorOutlineIcon />}
+                      sx={{ borderRadius: 2 }}
+                    >
+                      <Typography
+                        variant="subtitle2"
+                        fontWeight={700}
+                        gutterBottom
+                      >
+                        Please fix the following errors before submitting:
+                      </Typography>
+                      <ul style={{ margin: "8px 0 0 20px", padding: 0 }}>
+                        {Object.entries(formErrors).map(
+                          ([key, error]) =>
+                            error && (
+                              <li key={key} style={{ fontSize: "0.75rem" }}>
+                                {error}
+                              </li>
+                            ),
+                        )}
+                      </ul>
+                    </Alert>
+                  )}
 
                 {/* Action Buttons */}
                 <Box
@@ -1670,26 +2159,20 @@ export default function ClientManagement() {
                     gap: { xs: 1.5, sm: 2 },
                     pt: { xs: 2, sm: 2.5 },
                     mt: 1,
-                    borderTop: `1px solid ${C.border || "#e5e7eb"}`,
+                    borderTop: `1px solid ${C.border}`,
                   }}
                 >
                   <Button
                     variant="outlined"
                     onClick={() => setOpenModal(false)}
                     disabled={actionLoading}
-                    fullWidth={window.innerWidth < 600}
+                    fullWidth={isMobile}
                     sx={{
                       textTransform: "none",
                       fontWeight: 500,
                       px: 3,
                       py: { xs: 0.75, sm: 1 },
                       order: { xs: 2, sm: 1 },
-                      borderColor: "#d1d5db",
-                      color: "#6b7280",
-                      "&:hover": {
-                        borderColor: "#9ca3af",
-                        bgcolor: "#f9fafb",
-                      },
                     }}
                   >
                     Cancel
@@ -1698,27 +2181,26 @@ export default function ClientManagement() {
                     variant="contained"
                     disabled={actionLoading}
                     onClick={handleSubmit}
-                    fullWidth={window.innerWidth < 600}
+                    fullWidth={isMobile}
                     sx={{
                       bgcolor: C.primary,
-                      "&:hover": { bgcolor: C.primaryDark || "#0b3f4f" },
+                      "&:hover": { bgcolor: C.primaryDark },
                       textTransform: "none",
                       fontWeight: 600,
                       px: 3,
                       py: { xs: 0.75, sm: 1 },
                       order: { xs: 1, sm: 2 },
                       boxShadow: "0 2px 6px rgba(0,0,0,0.1)",
-                      "&:active": {
-                        transform: "scale(0.98)",
-                      },
                     }}
                   >
                     {actionLoading ? (
                       <CircularProgress size={20} sx={{ color: "white" }} />
                     ) : modalMode === "add" ? (
-                      "✓ Create Client"
+                      <>
+                        <CheckIcon sx={{ mr: 0.5 }} /> Create Client
+                      </>
                     ) : (
-                      "💾 Save Changes"
+                      "Save Changes"
                     )}
                   </Button>
                 </Box>
@@ -1727,7 +2209,6 @@ export default function ClientManagement() {
           </Box>
         </Fade>
       </Modal>
-
 
       {/* Toast */}
       <Snackbar
