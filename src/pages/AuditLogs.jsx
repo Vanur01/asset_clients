@@ -1,14 +1,11 @@
-// pages/AuditLogs.jsx — Updated: full role-based access, stats for all roles,
-// advanced filters, sorting, PDF / Excel / CSV export for every role.
+// pages/AuditLogs.jsx
+// Only two APIs used:
+//   GET /audit-logs          — all roles, backend filters by role
+//   GET /audit-logs/statistics — super admin only
 //
-// Dependencies (add to package.json if not already present):
-//   xlsx                  ^0.18.5   (Excel export)
-//   jspdf                 ^2.5.1    (PDF export)
-//   jspdf-autotable       ^3.8.2    (PDF table plugin)
-//   date-fns              ^3.x
-//   @mui/x-date-pickers   (already assumed)
+// npm deps: xlsx, jspdf, jspdf-autotable, date-fns, @mui/x-date-pickers
 
-import React, { useState, useEffect, useCallback, useMemo } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import {
   Box,
   Typography,
@@ -30,9 +27,7 @@ import {
   Stack,
   Tooltip,
   Dialog,
-  DialogTitle,
   DialogContent,
-  DialogActions,
   CircularProgress,
   Alert,
   Snackbar,
@@ -43,7 +38,6 @@ import {
   LinearProgress,
   Skeleton,
   alpha,
-  Paper,
   Chip,
   Menu,
   ListItemIcon,
@@ -80,28 +74,26 @@ import {
 import { LocalizationProvider, DatePicker } from "@mui/x-date-pickers";
 import { AdapterDateFns } from "@mui/x-date-pickers/AdapterDateFns";
 import { useAudit } from "../context/AuditContext";
-import { useAuth } from "../context/AuthContexts";
 import { format } from "date-fns";
 import * as XLSX from "xlsx";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 
-/* ─────────────────────── Design tokens ─────────────────────── */
+/* ─── Design tokens ─── */
 const T = {
   radius: "10px",
   radiusLg: "14px",
   border: "1px solid",
   borderColor: "#f0f0f0",
   cardBg: "#ffffff",
-  pageBg: "#f7f8fa",
   textPrimary: "#111827",
   textSecondary: "#6b7280",
   textMuted: "#9ca3af",
-  accent: "#4f46e5",
+  accent: "#0f4c61",
   fontMono: "'JetBrains Mono', 'Fira Code', monospace",
 };
 
-/* ─────────────────────── Action config ─────────────────────── */
+/* ─── Action config ─── */
 const ACTION_CONFIG = {
   CREATE: {
     label: "Create",
@@ -140,22 +132,112 @@ const ACTION_CONFIG = {
     icon: <LogoutIcon sx={{ fontSize: 11 }} />,
   },
   PASSWORD_CHANGE: {
-    label: "Pwd Chg",
+    label: "Pwd Change",
     bg: "#fdf4ff",
     color: "#7c3aed",
     icon: <HistoryIcon sx={{ fontSize: 11 }} />,
   },
   PASSWORD_RESET: {
-    label: "Pwd Rst",
+    label: "Pwd Reset",
     bg: "#fdf4ff",
     color: "#7c3aed",
     icon: <HistoryIcon sx={{ fontSize: 11 }} />,
   },
   STATUS_CHANGE: {
-    label: "Status",
+    label: "Status Chg",
     bg: "#fffbeb",
     color: "#d97706",
     icon: <CheckCircleIcon sx={{ fontSize: 11 }} />,
+  },
+  ASSET_CREATED: {
+    label: "Asset Created",
+    bg: "#f0fdf4",
+    color: "#16a34a",
+    icon: <CreateIcon sx={{ fontSize: 11 }} />,
+  },
+  ASSET_UPDATED: {
+    label: "Asset Updated",
+    bg: "#eff6ff",
+    color: "#2563eb",
+    icon: <EditIcon sx={{ fontSize: 11 }} />,
+  },
+  ASSET_DELETED: {
+    label: "Asset Deleted",
+    bg: "#fef2f2",
+    color: "#dc2626",
+    icon: <DeleteIcon sx={{ fontSize: 11 }} />,
+  },
+  ASSET_CLONED: {
+    label: "Asset Cloned",
+    bg: "#e0e7ff",
+    color: "#4f46e5",
+    icon: <CreateIcon sx={{ fontSize: 11 }} />,
+  },
+  ASSET_STATUS_UPDATED: {
+    label: "Asset Status",
+    bg: "#fffbeb",
+    color: "#d97706",
+    icon: <CheckCircleIcon sx={{ fontSize: 11 }} />,
+  },
+  ASSET_REQUEST_CREATED: {
+    label: "Asset Req",
+    bg: "#d1fae5",
+    color: "#059669",
+    icon: <CheckCircleIcon sx={{ fontSize: 11 }} />,
+  },
+  CATEGORY_CREATE: {
+    label: "Cat Create",
+    bg: "#f0fdf4",
+    color: "#16a34a",
+    icon: <CreateIcon sx={{ fontSize: 11 }} />,
+  },
+  CATEGORY_UPDATE: {
+    label: "Cat Update",
+    bg: "#eff6ff",
+    color: "#2563eb",
+    icon: <EditIcon sx={{ fontSize: 11 }} />,
+  },
+  CATEGORY_DELETE: {
+    label: "Cat Delete",
+    bg: "#fef2f2",
+    color: "#dc2626",
+    icon: <DeleteIcon sx={{ fontSize: 11 }} />,
+  },
+  LOCATION_CREATED: {
+    label: "Loc Created",
+    bg: "#f0fdf4",
+    color: "#16a34a",
+    icon: <CreateIcon sx={{ fontSize: 11 }} />,
+  },
+  LOCATION_UPDATED: {
+    label: "Loc Updated",
+    bg: "#eff6ff",
+    color: "#2563eb",
+    icon: <EditIcon sx={{ fontSize: 11 }} />,
+  },
+  LOCATION_DELETED: {
+    label: "Loc Deleted",
+    bg: "#fef2f2",
+    color: "#dc2626",
+    icon: <DeleteIcon sx={{ fontSize: 11 }} />,
+  },
+  ROLE_CREATED: {
+    label: "Role Created",
+    bg: "#f0fdf4",
+    color: "#16a34a",
+    icon: <CreateIcon sx={{ fontSize: 11 }} />,
+  },
+  ROLE_UPDATED: {
+    label: "Role Updated",
+    bg: "#eff6ff",
+    color: "#2563eb",
+    icon: <EditIcon sx={{ fontSize: 11 }} />,
+  },
+  ROLE_DELETED: {
+    label: "Role Deleted",
+    bg: "#fef2f2",
+    color: "#dc2626",
+    icon: <DeleteIcon sx={{ fontSize: 11 }} />,
   },
   ASSIGN: {
     label: "Assign",
@@ -189,14 +271,13 @@ const STATUS_CONFIG = {
   failed: { label: "Failed", bg: "#fef2f2", color: "#dc2626" },
 };
 
-/* ─────────────────────── Helpers ─────────────────────── */
+/* ─── Helpers ─── */
 const fmtDisplay = (d) => (d ? format(new Date(d), "MMM dd, yyyy") : "—");
 const fmtTime = (d) => (d ? format(new Date(d), "HH:mm:ss") : "");
 const fmtFull = (d) =>
   d ? format(new Date(d), "MMM dd, yyyy · HH:mm:ss") : "—";
 
-/* ─────────────────────── Sub-components ─────────────────────── */
-
+/* ─── StatCard ─── */
 function StatCard({ label, value, icon, color, loading, subtitle }) {
   if (loading)
     return (
@@ -263,6 +344,7 @@ function StatCard({ label, value, icon, color, loading, subtitle }) {
   );
 }
 
+/* ─── ActionChip ─── */
 function ActionChip({ action }) {
   const cfg = ACTION_CONFIG[action] || ACTION_CONFIG.default;
   return (
@@ -287,6 +369,7 @@ function ActionChip({ action }) {
   );
 }
 
+/* ─── RoleChip ─── */
 function RoleChip({ role }) {
   const cfg = ROLE_CONFIG[role] || ROLE_CONFIG.default;
   return (
@@ -308,6 +391,7 @@ function RoleChip({ role }) {
   );
 }
 
+/* ─── StatusChip ─── */
 function StatusChip({ status }) {
   if (!status)
     return (
@@ -339,6 +423,7 @@ function StatusChip({ status }) {
   );
 }
 
+/* ─── RoleHeader ─── */
 function RoleHeader({ isSuperAdmin, isAdmin }) {
   if (isSuperAdmin)
     return (
@@ -383,16 +468,14 @@ function RoleHeader({ isSuperAdmin, isAdmin }) {
   );
 }
 
-/* ─────────────────────── Export Button (all roles) ─────────────────────── */
+/* ─── ExportButton ─── */
 function ExportButton({ onExport, exporting, disabled }) {
   const [anchor, setAnchor] = useState(null);
   const open = Boolean(anchor);
-
   const handleClick = (fmt) => {
     setAnchor(null);
     onExport(fmt);
   };
-
   return (
     <>
       <Button
@@ -414,8 +497,6 @@ function ExportButton({ onExport, exporting, disabled }) {
           textTransform: "none",
           borderRadius: "8px",
         }}
-        aria-haspopup="true"
-        aria-expanded={open}
       >
         Export
       </Button>
@@ -472,7 +553,7 @@ function ExportButton({ onExport, exporting, disabled }) {
   );
 }
 
-/* ─────────────────────── Filter Bar ─────────────────────── */
+/* ─── FilterBar ─── */
 function FilterBar({
   filters,
   onChange,
@@ -486,84 +567,11 @@ function FilterBar({
   isAdmin,
 }) {
   const isMobile = useMediaQuery("(max-width:600px)");
-  const showRoleFilter = isSuperAdmin;
   const placeholder = isSuperAdmin
     ? "Search logs…"
     : isAdmin
       ? "Search organization activity…"
       : "Search your activity…";
-
-  const ActionSelect = () => (
-    <FormControl size="small" sx={{ minWidth: isMobile ? "100%" : 140 }}>
-      <InputLabel sx={{ fontSize: 12 }}>Action</InputLabel>
-      <Select
-        value={filters.action || ""}
-        label="Action"
-        onChange={(e) => onChange("action", e.target.value)}
-        sx={{ fontSize: 12, borderRadius: "8px" }}
-      >
-        <MenuItem value="" sx={{ fontSize: 12 }}>
-          All
-        </MenuItem>
-        {Object.entries(ACTION_CONFIG)
-          .filter(([k]) => k !== "default")
-          .map(([k, v]) => (
-            <MenuItem key={k} value={k} sx={{ fontSize: 12 }}>
-              {v.label}
-            </MenuItem>
-          ))}
-      </Select>
-    </FormControl>
-  );
-
-  const ResourceSelect = () => (
-    <FormControl size="small" sx={{ minWidth: isMobile ? "100%" : 130 }}>
-      <InputLabel sx={{ fontSize: 12 }}>Resource</InputLabel>
-      <Select
-        value={filters.resource || ""}
-        label="Resource"
-        onChange={(e) => onChange("resource", e.target.value)}
-        sx={{ fontSize: 12, borderRadius: "8px" }}
-      >
-        <MenuItem value="" sx={{ fontSize: 12 }}>
-          All
-        </MenuItem>
-        {["user", "asset", "checklist", "client", "team", "assignment"].map(
-          (r) => (
-            <MenuItem
-              key={r}
-              value={r}
-              sx={{ fontSize: 12, textTransform: "capitalize" }}
-            >
-              {r}
-            </MenuItem>
-          ),
-        )}
-      </Select>
-    </FormControl>
-  );
-
-  const StatusSelect = () => (
-    <FormControl size="small" sx={{ minWidth: isMobile ? "100%" : 120 }}>
-      <InputLabel sx={{ fontSize: 12 }}>Status</InputLabel>
-      <Select
-        value={filters.status || ""}
-        label="Status"
-        onChange={(e) => onChange("status", e.target.value)}
-        sx={{ fontSize: 12, borderRadius: "8px" }}
-      >
-        <MenuItem value="" sx={{ fontSize: 12 }}>
-          All
-        </MenuItem>
-        <MenuItem value="success" sx={{ fontSize: 12 }}>
-          Success
-        </MenuItem>
-        <MenuItem value="failed" sx={{ fontSize: 12 }}>
-          Failed
-        </MenuItem>
-      </Select>
-    </FormControl>
-  );
 
   return (
     <Box
@@ -576,7 +584,7 @@ function FilterBar({
         mb: 2,
       }}
     >
-      {/* Top row */}
+      {/* Header row */}
       <Box
         sx={{
           display: "flex",
@@ -603,10 +611,11 @@ function FilterBar({
         </Button>
       </Box>
 
-      {/* Filter controls */}
+      {/* Controls */}
       <Box
         sx={{ display: "flex", flexWrap: "wrap", gap: 1, alignItems: "center" }}
       >
+        {/* Search */}
         <TextField
           size="small"
           placeholder={placeholder}
@@ -626,11 +635,85 @@ function FilterBar({
           }}
         />
 
-        <ActionSelect />
-        <ResourceSelect />
-        <StatusSelect />
+        {/* Action */}
+        <FormControl size="small" sx={{ minWidth: isMobile ? "100%" : 150 }}>
+          <InputLabel sx={{ fontSize: 12 }}>Action</InputLabel>
+          <Select
+            value={filters.action || ""}
+            label="Action"
+            onChange={(e) => onChange("action", e.target.value)}
+            sx={{ fontSize: 12, borderRadius: "8px" }}
+          >
+            <MenuItem value="" sx={{ fontSize: 12 }}>
+              All
+            </MenuItem>
+            {Object.entries(ACTION_CONFIG)
+              .filter(([k]) => k !== "default")
+              .map(([k, v]) => (
+                <MenuItem key={k} value={k} sx={{ fontSize: 12 }}>
+                  {v.label}
+                </MenuItem>
+              ))}
+          </Select>
+        </FormControl>
 
-        {showRoleFilter && (
+        {/* Resource */}
+        <FormControl size="small" sx={{ minWidth: isMobile ? "100%" : 130 }}>
+          <InputLabel sx={{ fontSize: 12 }}>Resource</InputLabel>
+          <Select
+            value={filters.resource || ""}
+            label="Resource"
+            onChange={(e) => onChange("resource", e.target.value)}
+            sx={{ fontSize: 12, borderRadius: "8px" }}
+          >
+            <MenuItem value="" sx={{ fontSize: 12 }}>
+              All
+            </MenuItem>
+            {[
+              "user",
+              "asset",
+              "checklist",
+              "client",
+              "team",
+              "assignment",
+              "category",
+              "location",
+              "role",
+            ].map((r) => (
+              <MenuItem
+                key={r}
+                value={r}
+                sx={{ fontSize: 12, textTransform: "capitalize" }}
+              >
+                {r}
+              </MenuItem>
+            ))}
+          </Select>
+        </FormControl>
+
+        {/* Status */}
+        <FormControl size="small" sx={{ minWidth: isMobile ? "100%" : 120 }}>
+          <InputLabel sx={{ fontSize: 12 }}>Status</InputLabel>
+          <Select
+            value={filters.status || ""}
+            label="Status"
+            onChange={(e) => onChange("status", e.target.value)}
+            sx={{ fontSize: 12, borderRadius: "8px" }}
+          >
+            <MenuItem value="" sx={{ fontSize: 12 }}>
+              All
+            </MenuItem>
+            <MenuItem value="success" sx={{ fontSize: 12 }}>
+              Success
+            </MenuItem>
+            <MenuItem value="failed" sx={{ fontSize: 12 }}>
+              Failed
+            </MenuItem>
+          </Select>
+        </FormControl>
+
+        {/* Role filter — super admin only */}
+        {isSuperAdmin && (
           <FormControl size="small" sx={{ minWidth: isMobile ? "100%" : 130 }}>
             <InputLabel sx={{ fontSize: 12 }}>Role</InputLabel>
             <Select
@@ -655,6 +738,7 @@ function FilterBar({
           </FormControl>
         )}
 
+        {/* Date range */}
         <LocalizationProvider dateAdapter={AdapterDateFns}>
           <DatePicker
             key={`s-${dateKey}`}
@@ -688,7 +772,7 @@ function FilterBar({
           />
         </LocalizationProvider>
 
-        {/* Actions */}
+        {/* Action buttons */}
         <Box sx={{ display: "flex", gap: 0.75, ml: "auto", flexShrink: 0 }}>
           <ExportButton onExport={onExport} exporting={exporting} />
           <Button
@@ -720,7 +804,7 @@ function FilterBar({
   );
 }
 
-/* ─────────────────────── Detail Dialog ─────────────────────── */
+/* ─── DetailDialog ─── */
 function DetailDialog({ open, onClose, log, onExportSingle }) {
   if (!log) return null;
 
@@ -794,7 +878,7 @@ function DetailDialog({ open, onClose, log, onExportSingle }) {
 
       <DialogContent sx={{ p: 2.5 }}>
         <Stack spacing={2.5}>
-          {/* Row 1 */}
+          {/* Timestamp / Action / Status */}
           <Box sx={{ display: "flex", gap: 2.5, flexWrap: "wrap" }}>
             <Field label="Timestamp">
               <Typography
@@ -819,7 +903,7 @@ function DetailDialog({ open, onClose, log, onExportSingle }) {
 
           <Divider sx={{ borderColor: T.borderColor }} />
 
-          {/* Row 2 */}
+          {/* User / Resource */}
           <Box sx={{ display: "flex", gap: 2.5, flexWrap: "wrap" }}>
             <Field label="User">
               <Typography
@@ -905,7 +989,7 @@ function DetailDialog({ open, onClose, log, onExportSingle }) {
             </Box>
           )}
 
-          {/* Diffs */}
+          {/* Before / After diffs */}
           {log.oldData && (
             <Field label="Before changes">
               <Box
@@ -960,6 +1044,35 @@ function DetailDialog({ open, onClose, log, onExportSingle }) {
               </Box>
             </Field>
           )}
+
+          {/* Metadata */}
+          {log.metadata && Object.keys(log.metadata).length > 0 && (
+            <Field label="Metadata">
+              <Box
+                sx={{
+                  bgcolor: "#f8faff",
+                  border: T.border,
+                  borderColor: "#c7d2fe",
+                  borderRadius: "8px",
+                  p: "10px 12px",
+                  maxHeight: 120,
+                  overflowY: "auto",
+                }}
+              >
+                <pre
+                  style={{
+                    margin: 0,
+                    fontSize: 11,
+                    fontFamily: T.fontMono,
+                    color: "#3730a3",
+                    lineHeight: 1.6,
+                  }}
+                >
+                  {JSON.stringify(log.metadata, null, 2)}
+                </pre>
+              </Box>
+            </Field>
+          )}
         </Stack>
       </DialogContent>
 
@@ -1003,9 +1116,8 @@ function DetailDialog({ open, onClose, log, onExportSingle }) {
   );
 }
 
-/* ─────────────────────── Export utilities ─────────────────────── */
-
-function buildExportRows(logs, includeActor = true) {
+/* ─── Export utilities ─── */
+function buildExportRows(logs, includeActor) {
   const header = [
     "Timestamp",
     "Date",
@@ -1018,7 +1130,6 @@ function buildExportRows(logs, includeActor = true) {
     "Description",
     "IP Address",
   ];
-
   const rows = logs.map((l) => [
     l.createdAt ? format(new Date(l.createdAt), "MMM dd, yyyy HH:mm:ss") : "",
     l.createdAt ? format(new Date(l.createdAt), "yyyy-MM-dd") : "",
@@ -1031,7 +1142,6 @@ function buildExportRows(logs, includeActor = true) {
     l.description || "",
     l.ipAddress || "",
   ]);
-
   return { header, rows };
 }
 
@@ -1051,8 +1161,6 @@ function exportCSV(logs, filename, includeActor) {
 function exportExcel(logs, filename, includeActor, stats) {
   const { header, rows } = buildExportRows(logs, includeActor);
   const wb = XLSX.utils.book_new();
-
-  // Main sheet
   const ws = XLSX.utils.aoa_to_sheet([header, ...rows]);
   ws["!cols"] = header.map((h) => ({
     wch:
@@ -1066,18 +1174,18 @@ function exportExcel(logs, filename, includeActor, stats) {
   }));
   XLSX.utils.book_append_sheet(wb, ws, "Audit Logs");
 
-  // Summary sheet
+  // Summary sheet (includes stats if provided — super admin only)
   const today = format(new Date(), "yyyy-MM-dd");
   const summaryData = [
     ["Metric", "Value"],
-    ["Total logs", logs.length],
+    ["Exported records", logs.length],
     ["Export date", today],
     ...(stats
       ? [
-          ["Total actions", stats.totalActions || 0],
-          ["Today", stats.actionsToday || 0],
-          ["Unique users", stats.uniqueActors || 0],
-          ["Action types", stats.actionsByType?.length || 0],
+          ["Total system actions", stats.total || 0],
+          ["Actions today", stats.today || 0],
+          ["Action types", stats.byAction?.length || 0],
+          ["Resources tracked", stats.byResource?.length || 0],
         ]
       : []),
   ];
@@ -1086,19 +1194,15 @@ function exportExcel(logs, filename, includeActor, stats) {
     XLSX.utils.aoa_to_sheet(summaryData),
     "Summary",
   );
-
   XLSX.writeFile(wb, filename);
 }
 
 function exportPDF(logs, filename, includeActor, roleLabel) {
   const { header, rows } = buildExportRows(logs, includeActor);
   const doc = new jsPDF({ orientation: "landscape", unit: "pt", format: "a4" });
-
-  // Title
   doc.setFont("helvetica", "bold");
   doc.setFontSize(16);
   doc.text("Audit Logs", 40, 45);
-
   doc.setFont("helvetica", "normal");
   doc.setFontSize(9);
   doc.setTextColor(100);
@@ -1108,7 +1212,6 @@ function exportPDF(logs, filename, includeActor, roleLabel) {
     62,
   );
   doc.setTextColor(0);
-
   autoTable(doc, {
     head: [header],
     body: rows,
@@ -1122,7 +1225,6 @@ function exportPDF(logs, filename, includeActor, roleLabel) {
       return acc;
     }, {}),
   });
-
   doc.save(filename);
 }
 
@@ -1137,31 +1239,23 @@ function exportSingleLog(log, fmt, includeActor) {
     exportPDF([log], `${base}.pdf`, includeActor, "Single log");
 }
 
-/* ─────────────────────── Main Component ─────────────────────── */
+/* ═══════════════════════════════════════
+   Main Component
+═══════════════════════════════════════ */
 const AuditLogs = () => {
-  const { user } = useAuth();
   const {
     auditLogs,
-    myActivity,
-    organizationActivity,
     loading,
     error,
     stats,
     statsLoading,
-    myActivityLoading,
-    orgActivityLoading,
     pagination,
-    myActivityPagination,
-    orgActivityPagination,
     filters,
     isSuperAdmin,
     isAdmin,
     isTeam,
     fetchAuditLogs,
     fetchAuditStats,
-    exportAuditLogs, // kept for server-side fallback
-    fetchOrganizationActivity,
-    fetchMyActivity,
     updateFilters,
     resetFilters,
     clearError,
@@ -1186,54 +1280,48 @@ const AuditLogs = () => {
     severity: "success",
   });
 
-  /* Role-aware data sources */
-  const currentLogs = isSuperAdmin
-    ? auditLogs
-    : isAdmin
-      ? organizationActivity
-      : myActivity;
-  const currentPagination = isSuperAdmin
-    ? pagination
-    : isAdmin
-      ? orgActivityPagination
-      : myActivityPagination;
-  const currentLoading = isSuperAdmin
-    ? loading
-    : isAdmin
-      ? orgActivityLoading
-      : myActivityLoading;
+  const showSnackbar = (message, severity = "success") =>
+    setSnackbar({ open: true, message, severity });
 
-  /* ── Stats for non-super-admin roles (computed from loaded logs) ── */
+  /* ── Fetch on mount / page / filter change ── */
+  useEffect(() => {
+    fetchAuditLogs(page + 1, rowsPerPage);
+    if (isSuperAdmin) fetchAuditStats();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [page, rowsPerPage, filters]);
+
+  /* ── Derived stats for non-super-admin (computed from loaded page) ── */
   const derivedStats = useMemo(() => {
-    if (isSuperAdmin) return null; // uses real API stats
+    if (isSuperAdmin) return null;
     const today = format(new Date(), "yyyy-MM-dd");
-    const todayCount = (currentLogs || []).filter(
+    const todayCount = (auditLogs || []).filter(
       (l) =>
         l.createdAt && format(new Date(l.createdAt), "yyyy-MM-dd") === today,
     ).length;
-    const unique = new Set((currentLogs || []).map((l) => l.actor?.email)).size;
-    const types = new Set((currentLogs || []).map((l) => l.action)).size;
+    const unique = new Set((auditLogs || []).map((l) => l.actor?.email)).size;
+    const types = new Set((auditLogs || []).map((l) => l.action)).size;
     return {
-      total: currentPagination?.total || currentLogs?.length || 0,
+      total: pagination?.total || auditLogs?.length || 0,
       today: todayCount,
       unique,
       types,
     };
-  }, [isSuperAdmin, currentLogs, currentPagination]);
+  }, [isSuperAdmin, auditLogs, pagination]);
 
-  /* ── Fetch ── */
-  useEffect(() => {
-    if (isSuperAdmin) {
-      fetchAuditLogs(page + 1, rowsPerPage);
-      fetchAuditStats();
-    } else if (isAdmin) {
-      fetchOrganizationActivity(page + 1, rowsPerPage);
-    } else if (isTeam) {
-      fetchMyActivity(page + 1, rowsPerPage);
-    }
-  }, [page, rowsPerPage, filters, isSuperAdmin, isAdmin, isTeam]);
+  /* ── Stats display values ── */
+  // Super admin: real API stats shape → { total, byAction, byResource, today }
+  // Others: derived from current page data
+  const displayStats = isSuperAdmin
+    ? {
+        total: stats?.total,
+        today: stats?.today,
+        // API has no uniqueActors — use resource count as a proxy
+        unique: stats?.byResource?.reduce((s, r) => s + r.count, 0),
+        types: stats?.byAction?.length,
+      }
+    : derivedStats;
 
-  /* ── Sort ── */
+  /* ── Sort (client-side on current page) ── */
   const handleSort = (col) => {
     setOrder(orderBy === col && order === "asc" ? "desc" : "asc");
     setOrderBy(col);
@@ -1241,7 +1329,7 @@ const AuditLogs = () => {
 
   const sortedLogs = useMemo(
     () =>
-      [...(currentLogs || [])].sort((a, b) => {
+      [...(auditLogs || [])].sort((a, b) => {
         let av = a[orderBy],
           bv = b[orderBy];
         if (orderBy === "createdAt") {
@@ -1250,7 +1338,7 @@ const AuditLogs = () => {
         }
         return order === "asc" ? (av > bv ? 1 : -1) : av < bv ? 1 : -1;
       }),
-    [currentLogs, orderBy, order],
+    [auditLogs, orderBy, order],
   );
 
   /* ── Filters ── */
@@ -1265,33 +1353,36 @@ const AuditLogs = () => {
     setDatePickerKey((p) => p + 1);
   };
 
-  /* ── Export (all roles get client-side export) ── */
+  const handleRefresh = () => {
+    fetchAuditLogs(page + 1, rowsPerPage);
+    if (isSuperAdmin) fetchAuditStats();
+  };
+
+  /* ── Export (client-side, current page data) ── */
   const handleExport = async (fmt) => {
     setExporting(true);
-    const logsToExport = sortedLogs;
     const date = format(new Date(), "yyyy-MM-dd");
     const roleLabel = isSuperAdmin ? "Super Admin" : isAdmin ? "Admin" : "Team";
-    const includeActor = !isTeam; // team only sees their own logs
-
+    const includeActor = !isTeam; // team sees only own logs; omit actor column
     try {
       if (fmt === "csv")
-        exportCSV(logsToExport, `audit-logs-${date}.csv`, includeActor);
+        exportCSV(sortedLogs, `audit-logs-${date}.csv`, includeActor);
       if (fmt === "excel")
         exportExcel(
-          logsToExport,
+          sortedLogs,
           `audit-logs-${date}.xlsx`,
           includeActor,
           isSuperAdmin ? stats : null,
         );
       if (fmt === "pdf")
         exportPDF(
-          logsToExport,
+          sortedLogs,
           `audit-logs-${date}.pdf`,
           includeActor,
           roleLabel,
         );
       showSnackbar(
-        `Exported ${logsToExport.length} records as ${fmt.toUpperCase()}`,
+        `Exported ${sortedLogs.length} records as ${fmt.toUpperCase()}`,
         "success",
       );
     } catch (err) {
@@ -1302,34 +1393,22 @@ const AuditLogs = () => {
     }
   };
 
-  /* ── Single log export ── */
   const handleExportSingle = (log, fmt) => {
     try {
       exportSingleLog(log, fmt, !isTeam);
       showSnackbar(`Log exported as ${fmt.toUpperCase()}`, "success");
-    } catch (err) {
+    } catch {
       showSnackbar("Export failed.", "error");
     }
   };
 
-  const handleRefresh = () => {
-    if (isSuperAdmin) {
-      fetchAuditLogs(page + 1, rowsPerPage);
-      fetchAuditStats();
-    } else if (isAdmin) fetchOrganizationActivity(page + 1, rowsPerPage);
-    else fetchMyActivity(page + 1, rowsPerPage);
-  };
-
-  const showSnackbar = (message, severity = "success") =>
-    setSnackbar({ open: true, message, severity });
-
-  /* ── Columns ── */
+  /* ── Table columns ── */
   const cols = useMemo(() => {
     const base = [
       { id: "createdAt", label: "Timestamp", sortable: true, width: "140px" },
-      { id: "action", label: "Action", sortable: false, width: "110px" },
+      { id: "action", label: "Action", sortable: false, width: "130px" },
     ];
-    if (!isTeam) {
+    if (!isTeam)
       base.push({
         id: "actor",
         label: "User",
@@ -1337,13 +1416,12 @@ const AuditLogs = () => {
         width: "170px",
         hideOnMobile: true,
       });
-    }
     base.push(
       {
         id: "resource",
         label: "Resource",
         sortable: true,
-        width: "100px",
+        width: "110px",
         hideOnMobile: true,
       },
       {
@@ -1357,12 +1435,12 @@ const AuditLogs = () => {
       { id: "_view", label: "", sortable: false, width: "46px" },
     );
     return base;
-  }, [isTeam, isMobile]);
+  }, [isTeam]);
 
   const visibleCols = cols.filter((c) => !(isMobile && c.hideOnMobile));
 
   /* ── Loading skeleton ── */
-  if (currentLoading && (currentLogs?.length ?? 0) === 0) {
+  if (loading && (auditLogs?.length ?? 0) === 0) {
     return (
       <Box sx={{ p: { xs: 2, sm: 3 } }}>
         <Skeleton height={56} sx={{ mb: 2, borderRadius: T.radius }} />
@@ -1383,7 +1461,6 @@ const AuditLogs = () => {
     );
   }
 
-  /* ── Common cell styles ── */
   const cellSx = {
     fontSize: 12,
     py: "10px",
@@ -1402,16 +1479,6 @@ const AuditLogs = () => {
     py: "8px",
   };
 
-  /* ── Stats values ── */
-  const displayStats = isSuperAdmin
-    ? {
-        total: stats?.totalActions,
-        today: stats?.actionsToday,
-        unique: stats?.uniqueActors,
-        types: stats?.actionsByType?.length,
-      }
-    : derivedStats;
-
   return (
     <Box
       sx={{
@@ -1420,7 +1487,7 @@ const AuditLogs = () => {
         overflow: "hidden",
       }}
     >
-      {/* ── Page header ── */}
+      {/* Page header */}
       <Box
         sx={{
           mb: 2.5,
@@ -1444,14 +1511,10 @@ const AuditLogs = () => {
             {getPageDescription()}
           </Typography>
         </Box>
-        <RoleHeader
-          isSuperAdmin={isSuperAdmin}
-          isAdmin={isAdmin}
-          isTeam={isTeam}
-        />
+        <RoleHeader isSuperAdmin={isSuperAdmin} isAdmin={isAdmin} />
       </Box>
 
-      {/* ── Error ── */}
+      {/* Error alert */}
       {error && (
         <Alert
           severity="error"
@@ -1462,7 +1525,7 @@ const AuditLogs = () => {
         </Alert>
       )}
 
-      {/* ── Stats (ALL roles) ── */}
+      {/* Stats — all roles */}
       <Box
         sx={{
           display: "grid",
@@ -1476,7 +1539,7 @@ const AuditLogs = () => {
           value={displayStats?.total}
           icon={<TrendingUpIcon sx={{ fontSize: 16 }} />}
           color="#4f46e5"
-          loading={isSuperAdmin ? statsLoading : currentLoading}
+          loading={isSuperAdmin ? statsLoading : loading}
           subtitle={!isSuperAdmin ? "in current view" : undefined}
         />
         <StatCard
@@ -1484,32 +1547,33 @@ const AuditLogs = () => {
           value={displayStats?.today}
           icon={<TodayIcon sx={{ fontSize: 16 }} />}
           color="#16a34a"
-          loading={isSuperAdmin ? statsLoading : currentLoading}
+          loading={isSuperAdmin ? statsLoading : loading}
         />
         <StatCard
-          label="Unique Users"
+          label={isSuperAdmin ? "Total Events" : "Unique Users"}
           value={displayStats?.unique}
           icon={<PeopleIcon sx={{ fontSize: 16 }} />}
           color="#ea580c"
-          loading={isSuperAdmin ? statsLoading : currentLoading}
+          loading={isSuperAdmin ? statsLoading : loading}
         />
         <StatCard
           label="Action Types"
           value={displayStats?.types}
           icon={<CategoryIcon sx={{ fontSize: 16 }} />}
           color="#d97706"
-          loading={isSuperAdmin ? statsLoading : currentLoading}
+          loading={isSuperAdmin ? statsLoading : loading}
         />
       </Box>
 
-      {/* ── Total chip for non-super-admin ── */}
-      {!isSuperAdmin && currentPagination && (
+      {/* Total chip */}
+      {pagination && (
         <Box sx={{ mb: 1.5, display: "flex", alignItems: "center", gap: 1 }}>
           <Typography fontSize={12} color={T.textSecondary}>
-            {isAdmin ? "Organization" : "Personal"} activity
+            {isSuperAdmin ? "System" : isAdmin ? "Organization" : "Personal"}{" "}
+            activity
           </Typography>
           <Chip
-            label={`${(currentPagination.total || 0).toLocaleString()} total entries`}
+            label={`${(pagination.total || 0).toLocaleString()} total entries`}
             size="small"
             sx={{
               bgcolor: alpha(T.accent, 0.08),
@@ -1521,21 +1585,21 @@ const AuditLogs = () => {
         </Box>
       )}
 
-      {/* ── Filter bar (all roles) ── */}
+      {/* Filter bar */}
       <FilterBar
         filters={filters}
         onChange={handleFilterChange}
         onReset={handleReset}
         onExport={handleExport}
         onRefresh={handleRefresh}
-        loading={currentLoading}
+        loading={loading}
         exporting={exporting}
         dateKey={datePickerKey}
         isSuperAdmin={isSuperAdmin}
         isAdmin={isAdmin}
       />
 
-      {/* ── Table ── */}
+      {/* Table */}
       <Box
         sx={{
           bgcolor: T.cardBg,
@@ -1545,7 +1609,7 @@ const AuditLogs = () => {
           overflow: "hidden",
         }}
       >
-        {currentLoading && <LinearProgress sx={{ height: 2 }} />}
+        {loading && <LinearProgress sx={{ height: 2 }} />}
 
         <TableContainer sx={{ overflowX: "auto" }}>
           <Table sx={{ minWidth: isMobile ? 360 : 640 }}>
@@ -1636,7 +1700,7 @@ const AuditLogs = () => {
                       <ActionChip action={log.action} />
                     </TableCell>
 
-                    {/* User (super admin + admin) */}
+                    {/* User — hidden for team role and on mobile */}
                     {!isTeam && !isMobile && (
                       <TableCell sx={cellSx}>
                         <Box
@@ -1715,7 +1779,7 @@ const AuditLogs = () => {
                       <StatusChip status={log.status} />
                     </TableCell>
 
-                    {/* View */}
+                    {/* View button */}
                     <TableCell
                       sx={cellSx}
                       align="center"
@@ -1748,13 +1812,13 @@ const AuditLogs = () => {
           </Table>
         </TableContainer>
 
-        {/* ── Pagination ── */}
-        {currentPagination && currentPagination.total > 0 && (
+        {/* Pagination */}
+        {pagination && pagination.total > 0 && (
           <Box sx={{ borderTop: "1px solid #f3f4f6" }}>
             <TablePagination
               rowsPerPageOptions={[10, 20, 50, 100]}
               component="div"
-              count={currentPagination.total || 0}
+              count={pagination.total || 0}
               rowsPerPage={rowsPerPage}
               page={page}
               onPageChange={(_, p) => setPage(p)}
@@ -1775,7 +1839,7 @@ const AuditLogs = () => {
         )}
       </Box>
 
-      {/* ── Detail Dialog ── */}
+      {/* Detail dialog */}
       <DetailDialog
         open={detailsOpen}
         onClose={() => setDetailsOpen(false)}
@@ -1783,7 +1847,7 @@ const AuditLogs = () => {
         onExportSingle={handleExportSingle}
       />
 
-      {/* ── Snackbar ── */}
+      {/* Snackbar */}
       <Snackbar
         open={snackbar.open}
         autoHideDuration={4000}

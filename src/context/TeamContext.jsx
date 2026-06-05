@@ -1,4 +1,4 @@
-// context/TeamContext.js
+// context/TeamContext.jsx
 import React, {
   createContext,
   useContext,
@@ -18,20 +18,23 @@ export const useTeam = () => {
   return context;
 };
 
-const API_BASE_URL = "https://assset-management-backend-4.onrender.com/api/v1";
+const API_BASE_URL = "http://localhost:9001/api/v1";
 
-const getApiClient = (token) =>
-  axios.create({
-    baseURL: API_BASE_URL,
+// Helper to get fresh token each time
+const getAuthHeaders = () => {
+  const token =
+    localStorage.getItem("accessToken") ||
+    sessionStorage.getItem("accessToken");
+  return {
     headers: {
       "Content-Type": "application/json",
-      Authorization: `Bearer ${token}`,
+      ...(token && { Authorization: `Bearer ${token}` }),
     },
-    withCredentials: true,
-  });
+  };
+};
 
 export const TeamProvider = ({ children }) => {
-  const { token, isAuthenticated, user } = useAuth();
+  const { token, isAuthenticated, user, logout } = useAuth();
 
   // Team state
   const [teamMembers, setTeamMembers] = useState([]);
@@ -91,7 +94,7 @@ export const TeamProvider = ({ children }) => {
     pages: 1,
   });
 
-  // Refs — never trigger re-renders
+  // Refs
   const cacheRef = useRef({
     members: {},
     roles: null,
@@ -100,18 +103,33 @@ export const TeamProvider = ({ children }) => {
   });
   const initializedRef = useRef(false);
   const abortControllerRef = useRef(null);
-  // Keep latest token/auth in a ref so callbacks don't go stale
-  const authRef = useRef({ token, isAuthenticated });
-  // KEY FIX: keep latest filters in a ref to avoid stale closures in fetchTeamMembers
+  const authRef = useRef({ token, isAuthenticated, user });
   const filtersRef = useRef(filters);
 
   useEffect(() => {
-    authRef.current = { token, isAuthenticated };
-  }, [token, isAuthenticated]);
+    authRef.current = { token, isAuthenticated, user };
+  }, [token, isAuthenticated, user]);
 
   useEffect(() => {
     filtersRef.current = filters;
   }, [filters]);
+
+  // Helper to handle 401/403 errors
+  const handleAuthError = useCallback((err) => {
+    if (err.response?.status === 401 || err.response?.status === 403) {
+      console.error("Authentication error:", err.response?.data);
+      setError("Session expired. Please login again.");
+      // Clear invalid token
+      localStorage.removeItem("accessToken");
+      sessionStorage.removeItem("accessToken");
+      // Optionally redirect to login
+      setTimeout(() => {
+        window.location.href = "/login";
+      }, 1500);
+      return true;
+    }
+    return false;
+  }, []);
 
   // ─── Utilities ────────────────────────────────────────────────────────────
 
@@ -125,12 +143,10 @@ export const TeamProvider = ({ children }) => {
 
   const transformMember = useCallback(
     (member) => {
-      // Ensure we capture firstName and lastName correctly
       const firstName = member.firstName || "";
       const lastName = member.lastName || "";
       const email = member.email || "";
 
-      // Create full name from firstName and lastName
       const fullName =
         firstName && lastName
           ? `${firstName} ${lastName}`.trim()
@@ -228,11 +244,16 @@ export const TeamProvider = ({ children }) => {
   // ─── Profile ──────────────────────────────────────────────────────────────
 
   const fetchTeamProfile = useCallback(async () => {
-    const { token: t, isAuthenticated: auth } = authRef.current;
-    if (!auth || !t) return null;
+    const token =
+      localStorage.getItem("accessToken") ||
+      sessionStorage.getItem("accessToken");
+    if (!token) return null;
+
     setLoading(true);
     try {
-      const response = await getApiClient(t).get("/team/me/profile");
+      const response = await axios.get(`${API_BASE_URL}/team/me/profile`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
       if (response.data.success) {
         setProfile(response.data.profile);
         return response.data.profile;
@@ -240,50 +261,68 @@ export const TeamProvider = ({ children }) => {
       return null;
     } catch (err) {
       console.error("Fetch team profile error:", err);
+      handleAuthError(err);
       return null;
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [handleAuthError]);
 
-  const updateTeamProfile = useCallback(async (profileData) => {
-    const { token: t, isAuthenticated: auth } = authRef.current;
-    if (!auth || !t) return { success: false, error: "Not authenticated" };
-    setActionLoading(true);
-    try {
-      const response = await getApiClient(t).patch("/team/me/profile", {
-        firstName: profileData.firstName,
-        lastName: profileData.lastName,
-        phone: profileData.phone,
-        location: profileData.location,
-        bio: profileData.bio,
-        department: profileData.department,
-      });
-      if (response.data.success) {
-        setProfile(response.data.profile);
+  const updateTeamProfile = useCallback(
+    async (profileData) => {
+      const token =
+        localStorage.getItem("accessToken") ||
+        sessionStorage.getItem("accessToken");
+      if (!token) return { success: false, error: "Not authenticated" };
+
+      setActionLoading(true);
+      try {
+        const response = await axios.patch(
+          `${API_BASE_URL}/team/me/profile`,
+          {
+            firstName: profileData.firstName,
+            lastName: profileData.lastName,
+            phone: profileData.phone,
+            location: profileData.location,
+            bio: profileData.bio,
+            department: profileData.department,
+          },
+          {
+            headers: { Authorization: `Bearer ${token}` },
+          },
+        );
+
+        if (response.data.success) {
+          setProfile(response.data.profile);
+          return {
+            success: true,
+            message: response.data.message || "Profile updated successfully",
+          };
+        }
         return {
-          success: true,
-          message: response.data.message || "Profile updated successfully",
+          success: false,
+          error: response.data.message || "Failed to update profile",
         };
+      } catch (err) {
+        handleAuthError(err);
+        return {
+          success: false,
+          error: err.response?.data?.message || "Failed to update profile",
+        };
+      } finally {
+        setActionLoading(false);
       }
-      return {
-        success: false,
-        error: response.data.message || "Failed to update profile",
-      };
-    } catch (err) {
-      return {
-        success: false,
-        error: err.response?.data?.message || "Failed to update profile",
-      };
-    } finally {
-      setActionLoading(false);
-    }
-  }, []);
+    },
+    [handleAuthError],
+  );
 
   const changePassword = useCallback(
     async (currentPassword, newPassword, confirmPassword) => {
-      const { token: t, isAuthenticated: auth } = authRef.current;
-      if (!auth || !t) return { success: false, error: "Not authenticated" };
+      const token =
+        localStorage.getItem("accessToken") ||
+        sessionStorage.getItem("accessToken");
+      if (!token) return { success: false, error: "Not authenticated" };
+
       if (newPassword !== confirmPassword)
         return { success: false, error: "New passwords do not match" };
       if (newPassword.length < 6)
@@ -291,11 +330,13 @@ export const TeamProvider = ({ children }) => {
           success: false,
           error: "Password must be at least 6 characters",
         };
+
       setActionLoading(true);
       try {
-        const response = await getApiClient(t).post(
-          "/team/me/change-password",
+        const response = await axios.post(
+          `${API_BASE_URL}/team/me/change-password`,
           { currentPassword, newPassword },
+          { headers: { Authorization: `Bearer ${token}` } },
         );
         if (response.data.success)
           return {
@@ -307,6 +348,7 @@ export const TeamProvider = ({ children }) => {
           error: response.data.message || "Failed to change password",
         };
       } catch (err) {
+        handleAuthError(err);
         return {
           success: false,
           error: err.response?.data?.message || "Failed to change password",
@@ -315,56 +357,77 @@ export const TeamProvider = ({ children }) => {
         setActionLoading(false);
       }
     },
-    [],
+    [handleAuthError],
   );
 
   // ─── Roles ────────────────────────────────────────────────────────────────
 
-  const fetchRoles = useCallback(async (params = {}, forceRefresh = false) => {
-    const { token: t, isAuthenticated: auth } = authRef.current;
-    if (!auth || !t) return;
-    if (!forceRefresh && cacheRef.current.roles) {
-      setRoles(cacheRef.current.roles.data);
-      setRolesPagination(cacheRef.current.roles.pagination);
-      return;
-    }
-    setRolesLoading(true);
-    try {
-      const query = new URLSearchParams({
-        page: params.page || 1,
-        limit: params.limit || 100,
-        ...(params.search && { search: params.search }),
-      });
-      const response = await getApiClient(t).get(`/role?${query}`);
-      if (response.data.success) {
-        const pagination = response.data.pagination || {
-          page: 1,
-          limit: 100,
-          total: response.data.roles.length,
-          pages: 1,
-        };
-        setRoles(response.data.roles);
-        setRolesPagination(pagination);
-        cacheRef.current.roles = { data: response.data.roles, pagination };
+  const fetchRoles = useCallback(
+    async (params = {}, forceRefresh = false) => {
+      const token =
+        localStorage.getItem("accessToken") ||
+        sessionStorage.getItem("accessToken");
+      if (!token) return;
+
+      if (!forceRefresh && cacheRef.current.roles) {
+        setRoles(cacheRef.current.roles.data);
+        setRolesPagination(cacheRef.current.roles.pagination);
+        return;
       }
-    } catch (err) {
-      console.error("Fetch roles error:", err);
-    } finally {
-      setRolesLoading(false);
-    }
-  }, []);
+
+      setRolesLoading(true);
+      try {
+        const query = new URLSearchParams({
+          page: params.page || 1,
+          limit: params.limit || 100,
+          ...(params.search && { search: params.search }),
+        });
+        const response = await axios.get(`${API_BASE_URL}/role?${query}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+
+        if (response.data.success) {
+          const pagination = response.data.pagination || {
+            page: 1,
+            limit: 100,
+            total: response.data.roles.length,
+            pages: 1,
+          };
+          setRoles(response.data.roles);
+          setRolesPagination(pagination);
+          cacheRef.current.roles = { data: response.data.roles, pagination };
+        }
+      } catch (err) {
+        console.error("Fetch roles error:", err);
+        handleAuthError(err);
+      } finally {
+        setRolesLoading(false);
+      }
+    },
+    [handleAuthError],
+  );
 
   const createRole = useCallback(
     async (roleData) => {
-      const { token: t, isAuthenticated: auth } = authRef.current;
-      if (!auth || !t) return { success: false, error: "Not authenticated" };
+      const token =
+        localStorage.getItem("accessToken") ||
+        sessionStorage.getItem("accessToken");
+      if (!token) return { success: false, error: "Not authenticated" };
+
       setActionLoading(true);
       try {
-        const response = await getApiClient(t).post("/role", {
-          name: roleData.name,
-          description: roleData.description,
-          isActive: roleData.isActive !== false,
-        });
+        const response = await axios.post(
+          `${API_BASE_URL}/role`,
+          {
+            name: roleData.name,
+            description: roleData.description,
+            isActive: roleData.isActive !== false,
+          },
+          {
+            headers: { Authorization: `Bearer ${token}` },
+          },
+        );
+
         if (response.data.success) {
           cacheRef.current.roles = null;
           await fetchRoles({}, true);
@@ -379,6 +442,7 @@ export const TeamProvider = ({ children }) => {
           error: response.data.message || "Failed to create role",
         };
       } catch (err) {
+        handleAuthError(err);
         return {
           success: false,
           error: err.response?.data?.message || "Failed to create role",
@@ -387,16 +451,26 @@ export const TeamProvider = ({ children }) => {
         setActionLoading(false);
       }
     },
-    [fetchRoles],
+    [fetchRoles, handleAuthError],
   );
 
   const updateRole = useCallback(
     async (roleId, roleData) => {
-      const { token: t, isAuthenticated: auth } = authRef.current;
-      if (!auth || !t) return { success: false, error: "Not authenticated" };
+      const token =
+        localStorage.getItem("accessToken") ||
+        sessionStorage.getItem("accessToken");
+      if (!token) return { success: false, error: "Not authenticated" };
+
       setActionLoading(true);
       try {
-        const response = await getApiClient(t).put(`/role/${roleId}`, roleData);
+        const response = await axios.put(
+          `${API_BASE_URL}/role/${roleId}`,
+          roleData,
+          {
+            headers: { Authorization: `Bearer ${token}` },
+          },
+        );
+
         if (response.data.success) {
           cacheRef.current.roles = null;
           await fetchRoles({}, true);
@@ -411,6 +485,7 @@ export const TeamProvider = ({ children }) => {
           error: response.data.message || "Failed to update role",
         };
       } catch (err) {
+        handleAuthError(err);
         return {
           success: false,
           error: err.response?.data?.message || "Failed to update role",
@@ -419,16 +494,22 @@ export const TeamProvider = ({ children }) => {
         setActionLoading(false);
       }
     },
-    [fetchRoles],
+    [fetchRoles, handleAuthError],
   );
 
   const deleteRole = useCallback(
     async (roleId) => {
-      const { token: t, isAuthenticated: auth } = authRef.current;
-      if (!auth || !t) return { success: false, error: "Not authenticated" };
+      const token =
+        localStorage.getItem("accessToken") ||
+        sessionStorage.getItem("accessToken");
+      if (!token) return { success: false, error: "Not authenticated" };
+
       setActionLoading(true);
       try {
-        const response = await getApiClient(t).delete(`/role/${roleId}`);
+        const response = await axios.delete(`${API_BASE_URL}/role/${roleId}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+
         if (response.data.success) {
           cacheRef.current.roles = null;
           await fetchRoles({}, true);
@@ -442,6 +523,7 @@ export const TeamProvider = ({ children }) => {
           error: response.data.message || "Failed to delete role",
         };
       } catch (err) {
+        handleAuthError(err);
         return {
           success: false,
           error: err.response?.data?.message || "Failed to delete role",
@@ -450,20 +532,24 @@ export const TeamProvider = ({ children }) => {
         setActionLoading(false);
       }
     },
-    [fetchRoles],
+    [fetchRoles, handleAuthError],
   );
 
   // ─── Departments ──────────────────────────────────────────────────────────
 
   const fetchDepartments = useCallback(
     async (params = {}, forceRefresh = false) => {
-      const { token: t, isAuthenticated: auth } = authRef.current;
-      if (!auth || !t) return;
+      const token =
+        localStorage.getItem("accessToken") ||
+        sessionStorage.getItem("accessToken");
+      if (!token) return;
+
       if (!forceRefresh && cacheRef.current.departments) {
         setDepartments(cacheRef.current.departments.data);
         setDepartmentsPagination(cacheRef.current.departments.pagination);
         return;
       }
+
       setDepartmentsLoading(true);
       try {
         const query = new URLSearchParams({
@@ -471,7 +557,13 @@ export const TeamProvider = ({ children }) => {
           limit: params.limit || 100,
           ...(params.search && { search: params.search }),
         });
-        const response = await getApiClient(t).get(`/department?${query}`);
+        const response = await axios.get(
+          `${API_BASE_URL}/department?${query}`,
+          {
+            headers: { Authorization: `Bearer ${token}` },
+          },
+        );
+
         if (response.data.success) {
           const pagination = response.data.pagination || {
             page: 1,
@@ -488,24 +580,35 @@ export const TeamProvider = ({ children }) => {
         }
       } catch (err) {
         console.error("Fetch departments error:", err);
+        handleAuthError(err);
       } finally {
         setDepartmentsLoading(false);
       }
     },
-    [],
+    [handleAuthError],
   );
 
   const createDepartment = useCallback(
     async (deptData) => {
-      const { token: t, isAuthenticated: auth } = authRef.current;
-      if (!auth || !t) return { success: false, error: "Not authenticated" };
+      const token =
+        localStorage.getItem("accessToken") ||
+        sessionStorage.getItem("accessToken");
+      if (!token) return { success: false, error: "Not authenticated" };
+
       setActionLoading(true);
       try {
-        const response = await getApiClient(t).post("/department", {
-          name: deptData.name,
-          description: deptData.description,
-          isActive: deptData.isActive !== false,
-        });
+        const response = await axios.post(
+          `${API_BASE_URL}/department`,
+          {
+            name: deptData.name,
+            description: deptData.description,
+            isActive: deptData.isActive !== false,
+          },
+          {
+            headers: { Authorization: `Bearer ${token}` },
+          },
+        );
+
         if (response.data.success) {
           cacheRef.current.departments = null;
           await fetchDepartments({}, true);
@@ -520,6 +623,7 @@ export const TeamProvider = ({ children }) => {
           error: response.data.message || "Failed to create department",
         };
       } catch (err) {
+        handleAuthError(err);
         return {
           success: false,
           error: err.response?.data?.message || "Failed to create department",
@@ -528,19 +632,26 @@ export const TeamProvider = ({ children }) => {
         setActionLoading(false);
       }
     },
-    [fetchDepartments],
+    [fetchDepartments, handleAuthError],
   );
 
   const updateDepartment = useCallback(
     async (deptId, deptData) => {
-      const { token: t, isAuthenticated: auth } = authRef.current;
-      if (!auth || !t) return { success: false, error: "Not authenticated" };
+      const token =
+        localStorage.getItem("accessToken") ||
+        sessionStorage.getItem("accessToken");
+      if (!token) return { success: false, error: "Not authenticated" };
+
       setActionLoading(true);
       try {
-        const response = await getApiClient(t).put(
-          `/department/${deptId}`,
+        const response = await axios.put(
+          `${API_BASE_URL}/department/${deptId}`,
           deptData,
+          {
+            headers: { Authorization: `Bearer ${token}` },
+          },
         );
+
         if (response.data.success) {
           cacheRef.current.departments = null;
           await fetchDepartments({}, true);
@@ -555,6 +666,7 @@ export const TeamProvider = ({ children }) => {
           error: response.data.message || "Failed to update department",
         };
       } catch (err) {
+        handleAuthError(err);
         return {
           success: false,
           error: err.response?.data?.message || "Failed to update department",
@@ -563,16 +675,25 @@ export const TeamProvider = ({ children }) => {
         setActionLoading(false);
       }
     },
-    [fetchDepartments],
+    [fetchDepartments, handleAuthError],
   );
 
   const deleteDepartment = useCallback(
     async (deptId) => {
-      const { token: t, isAuthenticated: auth } = authRef.current;
-      if (!auth || !t) return { success: false, error: "Not authenticated" };
+      const token =
+        localStorage.getItem("accessToken") ||
+        sessionStorage.getItem("accessToken");
+      if (!token) return { success: false, error: "Not authenticated" };
+
       setActionLoading(true);
       try {
-        const response = await getApiClient(t).delete(`/department/${deptId}`);
+        const response = await axios.delete(
+          `${API_BASE_URL}/department/${deptId}`,
+          {
+            headers: { Authorization: `Bearer ${token}` },
+          },
+        );
+
         if (response.data.success) {
           cacheRef.current.departments = null;
           await fetchDepartments({}, true);
@@ -586,6 +707,7 @@ export const TeamProvider = ({ children }) => {
           error: response.data.message || "Failed to delete department",
         };
       } catch (err) {
+        handleAuthError(err);
         return {
           success: false,
           error: err.response?.data?.message || "Failed to delete department",
@@ -594,20 +716,24 @@ export const TeamProvider = ({ children }) => {
         setActionLoading(false);
       }
     },
-    [fetchDepartments],
+    [fetchDepartments, handleAuthError],
   );
 
   // ─── Locations ────────────────────────────────────────────────────────────
 
   const fetchLocations = useCallback(
     async (params = {}, forceRefresh = false) => {
-      const { token: t, isAuthenticated: auth } = authRef.current;
-      if (!auth || !t) return;
+      const token =
+        localStorage.getItem("accessToken") ||
+        sessionStorage.getItem("accessToken");
+      if (!token) return;
+
       if (!forceRefresh && cacheRef.current.locations) {
         setLocations(cacheRef.current.locations.data);
         setLocationsPagination(cacheRef.current.locations.pagination);
         return;
       }
+
       setLocationsLoading(true);
       try {
         const query = new URLSearchParams({
@@ -615,7 +741,10 @@ export const TeamProvider = ({ children }) => {
           limit: params.limit || 100,
           ...(params.search && { search: params.search }),
         });
-        const response = await getApiClient(t).get(`/location?${query}`);
+        const response = await axios.get(`${API_BASE_URL}/location?${query}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+
         if (response.data.success) {
           const pagination = response.data.pagination || {
             page: 1,
@@ -632,24 +761,35 @@ export const TeamProvider = ({ children }) => {
         }
       } catch (err) {
         console.error("Fetch locations error:", err);
+        handleAuthError(err);
       } finally {
         setLocationsLoading(false);
       }
     },
-    [],
+    [handleAuthError],
   );
 
   const createLocation = useCallback(
     async (locData) => {
-      const { token: t, isAuthenticated: auth } = authRef.current;
-      if (!auth || !t) return { success: false, error: "Not authenticated" };
+      const token =
+        localStorage.getItem("accessToken") ||
+        sessionStorage.getItem("accessToken");
+      if (!token) return { success: false, error: "Not authenticated" };
+
       setActionLoading(true);
       try {
-        const response = await getApiClient(t).post("/location", {
-          name: locData.name,
-          description: locData.description,
-          isActive: locData.isActive !== false,
-        });
+        const response = await axios.post(
+          `${API_BASE_URL}/location`,
+          {
+            name: locData.name,
+            description: locData.description,
+            isActive: locData.isActive !== false,
+          },
+          {
+            headers: { Authorization: `Bearer ${token}` },
+          },
+        );
+
         if (response.data.success) {
           cacheRef.current.locations = null;
           await fetchLocations({}, true);
@@ -664,6 +804,7 @@ export const TeamProvider = ({ children }) => {
           error: response.data.message || "Failed to create location",
         };
       } catch (err) {
+        handleAuthError(err);
         return {
           success: false,
           error: err.response?.data?.message || "Failed to create location",
@@ -672,19 +813,26 @@ export const TeamProvider = ({ children }) => {
         setActionLoading(false);
       }
     },
-    [fetchLocations],
+    [fetchLocations, handleAuthError],
   );
 
   const updateLocation = useCallback(
     async (locId, locData) => {
-      const { token: t, isAuthenticated: auth } = authRef.current;
-      if (!auth || !t) return { success: false, error: "Not authenticated" };
+      const token =
+        localStorage.getItem("accessToken") ||
+        sessionStorage.getItem("accessToken");
+      if (!token) return { success: false, error: "Not authenticated" };
+
       setActionLoading(true);
       try {
-        const response = await getApiClient(t).put(
-          `/location/${locId}`,
+        const response = await axios.put(
+          `${API_BASE_URL}/location/${locId}`,
           locData,
+          {
+            headers: { Authorization: `Bearer ${token}` },
+          },
         );
+
         if (response.data.success) {
           cacheRef.current.locations = null;
           await fetchLocations({}, true);
@@ -699,6 +847,7 @@ export const TeamProvider = ({ children }) => {
           error: response.data.message || "Failed to update location",
         };
       } catch (err) {
+        handleAuthError(err);
         return {
           success: false,
           error: err.response?.data?.message || "Failed to update location",
@@ -707,16 +856,25 @@ export const TeamProvider = ({ children }) => {
         setActionLoading(false);
       }
     },
-    [fetchLocations],
+    [fetchLocations, handleAuthError],
   );
 
   const deleteLocation = useCallback(
     async (locId) => {
-      const { token: t, isAuthenticated: auth } = authRef.current;
-      if (!auth || !t) return { success: false, error: "Not authenticated" };
+      const token =
+        localStorage.getItem("accessToken") ||
+        sessionStorage.getItem("accessToken");
+      if (!token) return { success: false, error: "Not authenticated" };
+
       setActionLoading(true);
       try {
-        const response = await getApiClient(t).delete(`/location/${locId}`);
+        const response = await axios.delete(
+          `${API_BASE_URL}/location/${locId}`,
+          {
+            headers: { Authorization: `Bearer ${token}` },
+          },
+        );
+
         if (response.data.success) {
           cacheRef.current.locations = null;
           await fetchLocations({}, true);
@@ -730,6 +888,7 @@ export const TeamProvider = ({ children }) => {
           error: response.data.message || "Failed to delete location",
         };
       } catch (err) {
+        handleAuthError(err);
         return {
           success: false,
           error: err.response?.data?.message || "Failed to delete location",
@@ -738,21 +897,30 @@ export const TeamProvider = ({ children }) => {
         setActionLoading(false);
       }
     },
-    [fetchLocations],
+    [fetchLocations, handleAuthError],
   );
 
-  // ─── Team Members ─────────────────────────────────────────────────────────
+  // ─── Team Members (CRITICAL FIX) ─────────────────────────────────────────
 
   const fetchTeamMembers = useCallback(
     async (overrides = {}, forceRefresh = false) => {
-      const { token: t, isAuthenticated: auth } = authRef.current;
-      if (!auth || !t) return;
+      const token =
+        localStorage.getItem("accessToken") ||
+        sessionStorage.getItem("accessToken");
+
+      // Check authentication
+      if (!token) {
+        console.warn("No token found, cannot fetch team members");
+        setError("Please login to continue");
+        setInitialLoading(false);
+        return;
+      }
 
       // Cancel any in-flight request
       if (abortControllerRef.current) abortControllerRef.current.abort();
       abortControllerRef.current = new AbortController();
 
-      // Always merge overrides with the LATEST filters from ref (never stale)
+      // Merge overrides with current filters
       const activeFilters = { ...filtersRef.current, ...overrides };
       const cacheKey = JSON.stringify(activeFilters);
 
@@ -765,6 +933,7 @@ export const TeamProvider = ({ children }) => {
       }
 
       setLoading(true);
+      setError(null);
 
       try {
         const params = new URLSearchParams({
@@ -772,7 +941,6 @@ export const TeamProvider = ({ children }) => {
           limit: String(activeFilters.limit || 10),
         });
 
-        // Support both unified search and individual field searches
         if (activeFilters.search) params.append("search", activeFilters.search);
         if (activeFilters.searchName)
           params.append("name", activeFilters.searchName);
@@ -783,14 +951,19 @@ export const TeamProvider = ({ children }) => {
         if (activeFilters.role && activeFilters.role !== "all")
           params.append("role", activeFilters.role);
 
-        const response = await getApiClient(t).get(`/team?${params}`, {
+        console.log("Fetching team members with params:", params.toString());
+
+        const response = await axios.get(`${API_BASE_URL}/team?${params}`, {
+          headers: { Authorization: `Bearer ${token}` },
           signal: abortControllerRef.current.signal,
         });
 
         if (response.data.success) {
-          const transformedMembers = (response.data.members || []).map(
-            transformMember,
-          );
+          const transformedMembers = (
+            response.data.members ||
+            response.data.teamMembers ||
+            []
+          ).map(transformMember);
           const pag = {
             page: response.data.pagination?.page || 1,
             limit: response.data.pagination?.limit || 10,
@@ -804,32 +977,44 @@ export const TeamProvider = ({ children }) => {
           };
           setTeamMembers(transformedMembers);
           setPagination(pag);
-          // Sync filters state with what was actually fetched
           setFilters((prev) => ({ ...prev, ...activeFilters, page: pag.page }));
-          setError(null);
+        } else {
+          throw new Error(
+            response.data.message || "Failed to fetch team members",
+          );
         }
       } catch (err) {
         if (err.name !== "CanceledError" && err.code !== "ERR_CANCELED") {
           console.error("Fetch team members error:", err);
-          setError(
-            err.response?.data?.message || "Failed to fetch team members",
-          );
+
+          const isAuthError = handleAuthError(err);
+          if (!isAuthError) {
+            setError(
+              err.response?.data?.message || "Failed to fetch team members",
+            );
+          }
         }
       } finally {
         setLoading(false);
         setInitialLoading(false);
       }
     },
-    [transformMember],
+    [transformMember, handleAuthError],
   );
 
   const fetchTeamMemberById = useCallback(
     async (memberId) => {
-      const { token: t, isAuthenticated: auth } = authRef.current;
-      if (!auth || !t) return null;
+      const token =
+        localStorage.getItem("accessToken") ||
+        sessionStorage.getItem("accessToken");
+      if (!token) return null;
+
       setLoading(true);
       try {
-        const response = await getApiClient(t).get(`/team/${memberId}`);
+        const response = await axios.get(`${API_BASE_URL}/team/${memberId}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+
         if (response.data.success) {
           const m = transformMember(response.data.member);
           setSelectedMember(m);
@@ -838,6 +1023,7 @@ export const TeamProvider = ({ children }) => {
         return null;
       } catch (err) {
         console.error("Fetch member by ID error:", err);
+        handleAuthError(err);
         setError(
           err.response?.data?.message || "Failed to fetch member details",
         );
@@ -846,28 +1032,43 @@ export const TeamProvider = ({ children }) => {
         setLoading(false);
       }
     },
-    [transformMember],
+    [transformMember, handleAuthError],
   );
 
-  const fetchTeamMemberDetails = useCallback(async (memberId) => {
-    const { token: t, isAuthenticated: auth } = authRef.current;
-    if (!auth || !t) return null;
-    setLoading(true);
-    try {
-      const response = await getApiClient(t).get(`/team/${memberId}/details`);
-      if (response.data.success) {
-        setSelectedMemberDetails(response.data.member);
-        return response.data.member;
+  const fetchTeamMemberDetails = useCallback(
+    async (memberId) => {
+      const token =
+        localStorage.getItem("accessToken") ||
+        sessionStorage.getItem("accessToken");
+      if (!token) return null;
+
+      setLoading(true);
+      try {
+        const response = await axios.get(
+          `${API_BASE_URL}/team/${memberId}/details`,
+          {
+            headers: { Authorization: `Bearer ${token}` },
+          },
+        );
+
+        if (response.data.success) {
+          setSelectedMemberDetails(response.data.member);
+          return response.data.member;
+        }
+        return null;
+      } catch (err) {
+        console.error("Fetch member details error:", err);
+        handleAuthError(err);
+        setError(
+          err.response?.data?.message || "Failed to fetch member details",
+        );
+        return null;
+      } finally {
+        setLoading(false);
       }
-      return null;
-    } catch (err) {
-      console.error("Fetch member details error:", err);
-      setError(err.response?.data?.message || "Failed to fetch member details");
-      return null;
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+    },
+    [handleAuthError],
+  );
 
   const searchTeamMembers = useCallback(
     async (searchTerm) => {
@@ -878,8 +1079,10 @@ export const TeamProvider = ({ children }) => {
 
   const addTeamMember = useCallback(
     async (memberData) => {
-      const { token: t, isAuthenticated: auth } = authRef.current;
-      if (!auth || !t) return { success: false, error: "Not authenticated" };
+      const token =
+        localStorage.getItem("accessToken") ||
+        sessionStorage.getItem("accessToken");
+      if (!token) return { success: false, error: "Not authenticated" };
 
       setActionLoading(true);
       setError(null);
@@ -887,23 +1090,28 @@ export const TeamProvider = ({ children }) => {
       try {
         console.log("Adding team member with data:", memberData);
 
-        const response = await getApiClient(t).post("/team", {
-          firstName: memberData.firstName,
-          lastName: memberData.lastName,
-          email: memberData.email,
-          password: memberData.password,
-          phone: memberData.phone || "",
-          roleId: memberData.roleId,
-          departmentId: memberData.departmentId,
-          locationId: memberData.locationId,
-          teamRole: memberData.teamRole || "inspector",
-          bio: memberData.bio || "",
-        });
+        const response = await axios.post(
+          `${API_BASE_URL}/team`,
+          {
+            firstName: memberData.firstName,
+            lastName: memberData.lastName,
+            email: memberData.email,
+            password: memberData.password,
+            phone: memberData.phone || "",
+            roleId: memberData.roleId,
+            departmentId: memberData.departmentId,
+            locationId: memberData.locationId,
+            teamRole: memberData.teamRole || "inspector",
+            bio: memberData.bio || "",
+          },
+          {
+            headers: { Authorization: `Bearer ${token}` },
+          },
+        );
 
         console.log("API Response:", response.data);
 
         if (response.data.success) {
-          // Clear cache and refresh team members
           cacheRef.current.members = {};
           await fetchTeamMembers({ page: 1 }, true);
 
@@ -920,8 +1128,7 @@ export const TeamProvider = ({ children }) => {
         };
       } catch (err) {
         console.error("Add team member error:", err);
-        console.error("Error response:", err.response?.data);
-
+        handleAuthError(err);
         return {
           success: false,
           error:
@@ -933,19 +1140,26 @@ export const TeamProvider = ({ children }) => {
         setActionLoading(false);
       }
     },
-    [fetchTeamMembers],
+    [fetchTeamMembers, handleAuthError],
   );
 
   const updateTeamMember = useCallback(
     async (memberId, updateData) => {
-      const { token: t, isAuthenticated: auth } = authRef.current;
-      if (!auth || !t) return { success: false, error: "Not authenticated" };
+      const token =
+        localStorage.getItem("accessToken") ||
+        sessionStorage.getItem("accessToken");
+      if (!token) return { success: false, error: "Not authenticated" };
+
       setActionLoading(true);
       try {
-        const response = await getApiClient(t).put(
-          `/team/${memberId}`,
+        const response = await axios.put(
+          `${API_BASE_URL}/team/${memberId}`,
           updateData,
+          {
+            headers: { Authorization: `Bearer ${token}` },
+          },
         );
+
         if (response.data.success) {
           cacheRef.current.members = {};
           await fetchTeamMembers({}, true);
@@ -965,6 +1179,7 @@ export const TeamProvider = ({ children }) => {
           error: response.data.message || "Failed to update team member",
         };
       } catch (err) {
+        handleAuthError(err);
         return {
           success: false,
           error: err.response?.data?.message || "Failed to update team member",
@@ -973,7 +1188,7 @@ export const TeamProvider = ({ children }) => {
         setActionLoading(false);
       }
     },
-    [fetchTeamMembers],
+    [fetchTeamMembers, handleAuthError],
   );
 
   const updateMemberStatus = useCallback(
@@ -985,13 +1200,20 @@ export const TeamProvider = ({ children }) => {
 
   const deleteTeamMember = useCallback(
     async (memberId, permanent = true) => {
-      const { token: t, isAuthenticated: auth } = authRef.current;
-      if (!auth || !t) return { success: false, error: "Not authenticated" };
+      const token =
+        localStorage.getItem("accessToken") ||
+        sessionStorage.getItem("accessToken");
+      if (!token) return { success: false, error: "Not authenticated" };
+
       setActionLoading(true);
       try {
-        const response = await getApiClient(t).delete(
-          `/team/${memberId}?permanent=${permanent}`,
+        const response = await axios.delete(
+          `${API_BASE_URL}/team/${memberId}?permanent=${permanent}`,
+          {
+            headers: { Authorization: `Bearer ${token}` },
+          },
         );
+
         if (response.data.success) {
           cacheRef.current.members = {};
           await fetchTeamMembers({ page: 1 }, true);
@@ -1011,6 +1233,7 @@ export const TeamProvider = ({ children }) => {
           error: response.data.message || "Failed to delete team member",
         };
       } catch (err) {
+        handleAuthError(err);
         return {
           success: false,
           error: err.response?.data?.message || "Failed to delete team member",
@@ -1019,14 +1242,12 @@ export const TeamProvider = ({ children }) => {
         setActionLoading(false);
       }
     },
-    [fetchTeamMembers],
+    [fetchTeamMembers, handleAuthError],
   );
 
   const updateFilters = useCallback(
     async (newFilters) => {
-      // Merge new filters on top of current ref value, reset to page 1
       const updatedFilters = { ...filtersRef.current, ...newFilters, page: 1 };
-      // Update ref immediately so fetchTeamMembers sees the latest values
       filtersRef.current = updatedFilters;
       setFilters(updatedFilters);
       await fetchTeamMembers(updatedFilters, true);
@@ -1054,10 +1275,15 @@ export const TeamProvider = ({ children }) => {
 
   // ─── Initial data fetch ────────────────────────────────────────────────────
   useEffect(() => {
-    if (!isAuthenticated || !token) {
+    const token =
+      localStorage.getItem("accessToken") ||
+      sessionStorage.getItem("accessToken");
+
+    if (!token || !isAuthenticated) {
       initializedRef.current = false;
       return;
     }
+
     if (initializedRef.current) return;
     initializedRef.current = true;
 
@@ -1069,7 +1295,15 @@ export const TeamProvider = ({ children }) => {
     fetchDepartments({}, true);
     fetchLocations({}, true);
     if (isTeamMember) fetchTeamProfile();
-  }, [isAuthenticated, token]);
+  }, [
+    isAuthenticated,
+    user?.role,
+    fetchTeamMembers,
+    fetchRoles,
+    fetchDepartments,
+    fetchLocations,
+    fetchTeamProfile,
+  ]);
 
   // Cleanup abort controller on unmount
   useEffect(() => {

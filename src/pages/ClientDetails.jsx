@@ -444,10 +444,10 @@ const UpgradeModal = ({
   }, [open, client, currentPlan]);
 
   const planOptions = [
-    { value: "free", label: "Free", price: "$0/mo" },
-    { value: "standard", label: "Standard", price: "$49/mo" },
-    { value: "premium", label: "Premium", price: "$99/mo" },
-    { value: "enterprise", label: "Enterprise", price: "$299/mo" },
+    { value: "free", label: "Free", price: "0/mo" },
+    { value: "standard", label: "Standard", price: "49/mo" },
+    { value: "premium", label: "Premium", price: "99/mo" },
+    { value: "enterprise", label: "Enterprise", price: "299/mo" },
   ];
 
   const handleSubmit = () => {

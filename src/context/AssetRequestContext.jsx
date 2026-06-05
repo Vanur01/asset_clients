@@ -1,237 +1,268 @@
-// contexts/AssetRequestContext.jsx
+// context/AssetRequestContext.jsx
 import React, { createContext, useContext, useState, useCallback } from "react";
-import { useAuth } from "./AuthContexts";
 import axios from "axios";
+import { useAuth } from "./AuthContexts";
 
 const AssetRequestContext = createContext();
 
 export const useAssetRequest = () => {
   const context = useContext(AssetRequestContext);
-  if (!context)
-    throw new Error("useAssetRequest must be used within AssetRequestProvider");
+  if (!context) {
+    throw new Error(
+      "useAssetRequest must be used within an AssetRequestProvider",
+    );
+  }
   return context;
 };
 
-const API_BASE_URL = "https://assset-management-backend-4.onrender.com/api/v1";
+const API_BASE_URL = "http://localhost:9001/api/v1";
 
 export const AssetRequestProvider = ({ children }) => {
-  const { token, user, isAdmin, isTeam } = useAuth();
-  const [requests, setRequests] = useState([]);
+  const { token, user } = useAuth();
   const [loading, setLoading] = useState(false);
-  const [pagination, setPagination] = useState({
-    page: 1,
-    limit: 10,
-    total: 0,
-    totalPages: 0,
-  });
+  const [error, setError] = useState(null);
 
-  const getAuthHeaders = useCallback(
-    () => ({ headers: { Authorization: `Bearer ${token}` } }),
-    [token],
+  const getAuthHeaders = useCallback(() => {
+    const currentToken =
+      token ||
+      localStorage.getItem("accessToken") ||
+      localStorage.getItem("token");
+    return {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${currentToken}`,
+    };
+  }, [token]);
+
+  // Fetch all requests with filters
+  const fetchRequests = useCallback(
+    async (filters = {}) => {
+      setLoading(true);
+      setError(null);
+      try {
+        const { page = 1, limit = 10, type = "all", status, search } = filters;
+        let url = `${API_BASE_URL}/asset-requests?page=${page}&limit=${limit}`;
+
+        if (type && type !== "all") {
+          url += `&type=${type}`;
+        }
+        if (status && status !== "all") {
+          url += `&status=${status}`;
+        }
+        if (search) {
+          url += `&search=${encodeURIComponent(search)}`;
+        }
+
+        const response = await axios.get(url, {
+          headers: getAuthHeaders(),
+        });
+
+        return response.data;
+      } catch (err) {
+        const errorMsg =
+          err.response?.data?.message || "Failed to fetch requests";
+        setError(errorMsg);
+        throw err;
+      } finally {
+        setLoading(false);
+      }
+    },
+    [getAuthHeaders],
   );
 
-  // GET /asset/:id — fetch a single asset/request by ID
+  // Fetch single request by ID
   const getRequestById = useCallback(
     async (id) => {
       setLoading(true);
+      setError(null);
       try {
         const response = await axios.get(
-          `${API_BASE_URL}/asset/${id}`,
-          getAuthHeaders(),
+          `${API_BASE_URL}/asset-requests/${id}`,
+          {
+            headers: getAuthHeaders(),
+          },
         );
-        if (response.data.success) return response.data.data;
-        return null;
-      } catch (error) {
-        console.error("Error fetching request:", error);
-        if (error.response?.status === 404) return null;
-        throw error;
+        console.log("API Response from getRequestById:", response.data);
+        return response.data;
+      } catch (err) {
+        const errorMsg =
+          err.response?.data?.message || "Failed to fetch request details";
+        setError(errorMsg);
+        throw err;
       } finally {
         setLoading(false);
       }
     },
-    [token, getAuthHeaders],
+    [getAuthHeaders],
   );
 
-  // POST /asset/request — team submits a new asset request
+  // Fetch requests by asset ID
+  const getRequestsByAsset = useCallback(
+    async (assetId) => {
+      setLoading(true);
+      setError(null);
+      try {
+        const response = await axios.get(
+          `${API_BASE_URL}/asset-requests/asset/${assetId}`,
+          {
+            headers: getAuthHeaders(),
+          },
+        );
+        return response.data;
+      } catch (err) {
+        const errorMsg =
+          err.response?.data?.message || "Failed to fetch asset requests";
+        setError(errorMsg);
+        throw err;
+      } finally {
+        setLoading(false);
+      }
+    },
+    [getAuthHeaders],
+  );
+
+  // Create new request
   const createRequest = useCallback(
     async (requestData) => {
       setLoading(true);
+      setError(null);
       try {
         const response = await axios.post(
-          `${API_BASE_URL}/asset/request`,
+          `${API_BASE_URL}/asset-requests`,
           requestData,
-          getAuthHeaders(),
+          {
+            headers: getAuthHeaders(),
+          },
         );
-        if (response.data.success) {
-          return response.data;
-        }
-        return null;
-      } catch (error) {
-        console.error("Error creating request:", error);
-        throw error;
+        return response.data;
+      } catch (err) {
+        const errorMsg =
+          err.response?.data?.message || "Failed to create request";
+        setError(errorMsg);
+        throw err;
       } finally {
         setLoading(false);
       }
     },
-    [token, getAuthHeaders],
+    [getAuthHeaders],
   );
 
-  // GET /asset/requests/parent — admin: all parent requests | team: own
-  const getParentRequests = useCallback(
-    async (filters = {}) => {
-      setLoading(true);
-      try {
-        const params = new URLSearchParams();
-        Object.entries(filters).forEach(([key, value]) => {
-          if (value !== undefined && value !== "" && value !== null)
-            params.append(key, value);
-        });
-        const url = `${API_BASE_URL}/asset/requests/parent${params.toString() ? `?${params.toString()}` : ""}`;
-        const response = await axios.get(url, getAuthHeaders());
-        if (response.data.success) {
-          setRequests(response.data.requests || []);
-          setPagination(
-            response.data.pagination || {
-              page: 1,
-              limit: 10,
-              total: 0,
-              totalPages: 0,
-            },
-          );
-          return response.data;
-        }
-        return null;
-      } catch (error) {
-        console.error("Error fetching parent requests:", error);
-        if (error.response?.status === 403) {
-          setRequests([]);
-          setPagination({ page: 1, limit: 10, total: 0, totalPages: 0 });
-          return { requests: [], pagination: { total: 0 } };
-        }
-        throw error;
-      } finally {
-        setLoading(false);
-      }
+  // Create parent request (alias for createRequest)
+  const createParentRequest = useCallback(
+    async (requestData) => {
+      return createRequest(requestData);
     },
-    [token, getAuthHeaders],
+    [createRequest],
   );
 
-  // GET /asset/requests/child — admin: all child requests | team: own
-  const getChildRequests = useCallback(
-    async (filters = {}) => {
+  // Create child request
+  const createChildRequest = useCallback(
+    async (parentId, childData) => {
       setLoading(true);
+      setError(null);
       try {
-        const params = new URLSearchParams();
-        Object.entries(filters).forEach(([key, value]) => {
-          if (value !== undefined && value !== "" && value !== null)
-            params.append(key, value);
-        });
-        const url = `${API_BASE_URL}/asset/requests/child${params.toString() ? `?${params.toString()}` : ""}`;
-        const response = await axios.get(url, getAuthHeaders());
-        if (response.data.success) {
-          setRequests(response.data.requests || []);
-          setPagination(
-            response.data.pagination || {
-              page: 1,
-              limit: 10,
-              total: 0,
-              totalPages: 0,
-            },
-          );
-          return response.data;
-        }
-        return null;
-      } catch (error) {
-        console.error("Error fetching child requests:", error);
-        if (error.response?.status === 403) {
-          setRequests([]);
-          setPagination({ page: 1, limit: 10, total: 0, totalPages: 0 });
-          return { requests: [], pagination: { total: 0 } };
-        }
-        throw error;
-      } finally {
-        setLoading(false);
-      }
-    },
-    [token, getAuthHeaders],
-  );
-
-  // GET /asset/requests/my — team only: their own requests
-  const getMyRequests = useCallback(
-    async (filters = {}) => {
-      setLoading(true);
-      try {
-        const params = new URLSearchParams();
-        Object.entries(filters).forEach(([key, value]) => {
-          if (value !== undefined && value !== "" && value !== null)
-            params.append(key, value);
-        });
-        const url = `${API_BASE_URL}/asset/requests/my${params.toString() ? `?${params.toString()}` : ""}`;
-        const response = await axios.get(url, getAuthHeaders());
-        if (response.data.success) {
-          setRequests(response.data.requests || []);
-          setPagination(
-            response.data.pagination || {
-              page: 1,
-              limit: 10,
-              total: 0,
-              totalPages: 0,
-            },
-          );
-          return response.data;
-        }
-        return null;
-      } catch (error) {
-        console.error("Error fetching my requests:", error);
-        if (error.response?.status === 401 || error.response?.status === 403) {
-          setRequests([]);
-          setPagination({ page: 1, limit: 10, total: 0, totalPages: 0 });
-          return { requests: [], pagination: { total: 0 } };
-        }
-        throw error;
-      } finally {
-        setLoading(false);
-      }
-    },
-    [token, getAuthHeaders],
-  );
-
-  // POST /asset/requests/:id/process — admin approves or rejects
-  const reviewRequest = useCallback(
-    async (id, action, rejectionReason = null) => {
-      setLoading(true);
-      try {
-        const body = { action };
-        if (rejectionReason) body.rejectionReason = rejectionReason;
         const response = await axios.post(
-          `${API_BASE_URL}/asset/requests/${id}/process`,
-          body,
-          getAuthHeaders(),
+          `${API_BASE_URL}/asset-requests/${parentId}/child`,
+          childData,
+          {
+            headers: getAuthHeaders(),
+          },
         );
-        if (response.data.success) return response.data;
-        return null;
-      } catch (error) {
-        console.error("Error reviewing request:", error);
-        throw error;
+        return response.data;
+      } catch (err) {
+        const errorMsg =
+          err.response?.data?.message || "Failed to create child request";
+        setError(errorMsg);
+        throw err;
       } finally {
         setLoading(false);
       }
     },
-    [token, getAuthHeaders],
+    [getAuthHeaders],
+  );
+
+  // Approve request
+  const approveRequest = useCallback(
+    async (id, notes = "") => {
+      setLoading(true);
+      setError(null);
+      try {
+        const response = await axios.patch(
+          `${API_BASE_URL}/asset-requests/${id}/approve`,
+          { notes },
+          { headers: getAuthHeaders() },
+        );
+        return response.data;
+      } catch (err) {
+        const errorMsg =
+          err.response?.data?.message || "Failed to approve request";
+        setError(errorMsg);
+        throw err;
+      } finally {
+        setLoading(false);
+      }
+    },
+    [getAuthHeaders],
+  );
+
+  // Reject request
+  const rejectRequest = useCallback(
+    async (id, reason) => {
+      setLoading(true);
+      setError(null);
+      try {
+        const response = await axios.patch(
+          `${API_BASE_URL}/asset-requests/${id}/reject`,
+          { reason },
+          { headers: getAuthHeaders() },
+        );
+        return response.data;
+      } catch (err) {
+        const errorMsg =
+          err.response?.data?.message || "Failed to reject request";
+        setError(errorMsg);
+        throw err;
+      } finally {
+        setLoading(false);
+      }
+    },
+    [getAuthHeaders],
+  );
+
+  // Link child asset to request
+  const linkAsset = useCallback(
+    async (requestId, childAssetId, relationshipType = "accessory") => {
+      setLoading(true);
+      setError(null);
+      try {
+        const response = await axios.post(
+          `${API_BASE_URL}/asset-requests/${requestId}/link-asset`,
+          { childAssetId, relationshipType },
+          { headers: getAuthHeaders() },
+        );
+        return response.data;
+      } catch (err) {
+        const errorMsg = err.response?.data?.message || "Failed to link asset";
+        setError(errorMsg);
+        throw err;
+      } finally {
+        setLoading(false);
+      }
+    },
+    [getAuthHeaders],
   );
 
   const value = {
-    requests,
     loading,
-    pagination,
-    getParentRequests,
-    getChildRequests,
-    getMyRequests,
+    error,
+    fetchRequests,
     getRequestById,
+    getRequestsByAsset,
     createRequest,
-    reviewRequest,
-    isAdmin: isAdmin?.(),
-    isTeam: isTeam?.(),
+    createParentRequest,
+    createChildRequest,
+    approveRequest,
+    rejectRequest,
+    linkAsset,
   };
 
   return (

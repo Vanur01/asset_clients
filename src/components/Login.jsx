@@ -1,5 +1,4 @@
-// components/Login.jsx - Fully Optimized with Proper Validation
-
+// components/Login.jsx - Fixed Team Login Issue
 import React, { useState, useEffect } from "react";
 import {
   Box,
@@ -38,7 +37,7 @@ import Navbar from "../pages/landing/Navbar";
 const LoginPage = () => {
   const theme = useTheme();
   const navigate = useNavigate();
-  const { login, loading: authLoading } = useAuth();
+  const { login, loading: authLoading, user, isAuthenticated } = useAuth();
   const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
   
   const [showPassword, setShowPassword] = useState(false);
@@ -56,6 +55,15 @@ const LoginPage = () => {
     email: "",
     password: "",
   });
+
+  // Redirect if already authenticated
+  useEffect(() => {
+    if (isAuthenticated && user) {
+      console.log("Already authenticated, redirecting to:", user.role === "team" ? "/team" : "/dashboard");
+      const redirectPath = user.role === "team" ? "/team" : "/dashboard";
+      navigate(redirectPath, { replace: true });
+    }
+  }, [isAuthenticated, user, navigate]);
 
   // Real-time validation
   const validateEmail = (email) => {
@@ -124,7 +132,7 @@ const LoginPage = () => {
       const result = await login(formData.email, formData.password);
 
       if (result.success) {
-        setSuccess(result.message || "Login successful! Redirecting to dashboard...");
+        setSuccess(result.message || "Login successful! Redirecting...");
         setSuccessSnackbarOpen(true);
 
         // Handle remember me
@@ -136,10 +144,13 @@ const LoginPage = () => {
           localStorage.removeItem("rememberedEmail");
         }
 
-        // Redirect after delay
+        // Determine redirect path based on role
+        const redirectPath = result.redirectPath || (result.role === "team" ? "/team" : "/dashboard");
+        
+        // Small delay to ensure state is updated
         setTimeout(() => {
-          navigate(result.redirectPath || "/dashboard", { replace: true });
-        }, 2000);
+          navigate(redirectPath, { replace: true });
+        }, 500);
       } else {
         setError(result.error || "Invalid email or password");
         setSnackbarOpen(true);

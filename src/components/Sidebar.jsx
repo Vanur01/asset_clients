@@ -144,13 +144,6 @@ const navItemsConfig = {
       roles: ["super_admin"],
     },
     {
-      id: "assets",
-      icon: Inventory2OutlinedIcon,
-      label: "Assets Management",
-      path: "/admin/assets",
-      roles: ["super_admin"],
-    },
-    {
       id: "reports",
       icon: BarChartOutlinedIcon,
       label: "Reports and Analysis",
@@ -246,10 +239,10 @@ const navItemsConfig = {
       roles: ["team"],
     },
     {
-      id: "profile",
-      icon: PersonOutlineOutlinedIcon,
-      label: "Profile",
-      path: "/team/profile",
+      id: "audit-logs",
+      icon: ReceiptLongOutlinedIcon,
+      label: "Logs",
+      path: "/admin/audit-logs",
       roles: ["team"],
     },
     {
@@ -260,10 +253,10 @@ const navItemsConfig = {
       roles: ["team"],
     },
     {
-      id: "audit-logs",
-      icon: ReceiptLongOutlinedIcon,
-      label: "Logs",
-      path: "/admin/audit-logs",
+      id: "profile",
+      icon: PersonOutlineOutlinedIcon,
+      label: "Profile",
+      path: "/team/profile",
       roles: ["team"],
     },
   ],

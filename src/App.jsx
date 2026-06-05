@@ -1,4 +1,4 @@
-// App.jsx - Complete Updated Version
+// App.jsx - Fixed with Admin and Team only (Super Admin removed)
 import React from "react";
 import {
   BrowserRouter as Router,
@@ -10,6 +10,7 @@ import { AuthProvider, useAuth } from "./context/AuthContexts";
 import { NotificationProvider } from "./context/NotificationContext";
 import { AuditProvider } from "./context/AuditContext";
 import { AssetProvider } from "./context/AssetContext";
+import { AssetCategoryProvider } from "./context/AssetCategoryContexts";
 import { ClientProvider } from "./context/ClientContext";
 import { TeamProvider } from "./context/TeamContext";
 import { DashboardProvider } from "./context/DashboardContext";
@@ -41,14 +42,14 @@ import Checklistanalytics from "./pages/Checklistanalytics";
 import AssignedChecklistDetails from "./pages/AssignedCheckListDetails";
 import SubmissionDetails from "./pages/Submissiondetails";
 import AssetManagement from "./pages/AssetManagement";
-import AddNewAsset from "./pages/AddAssetForm";
+import AddNewAsset from "./pages/AddNewAsset";
 import AssetView from "./pages/AssetView";
 import EditAsset from "./pages/EditAsset";
 import CloneAssets from "./pages/CloneAssetList";
 import MyTasks from "./pages/MyTask";
 import InspectionHistory from "./pages/Inspectionhistory";
 import MyRequests from "./pages/Myrequests";
-import AssetRequests from "./pages/AssetRequest";
+import AssetRequestsApp from "./pages/AssetRequest";
 import CreateAssetRequest from "./pages/CreateAssetRequest";
 import AssetRequestDetails from "./pages/AssetRequestDetails";
 import ContactInquiries from "./pages/ContactInquiries";
@@ -56,12 +57,12 @@ import AuditLogs from "./pages/AuditLogs";
 import Main from "./pages/landing/Main";
 import ForgotPassword from "./components/ForgotPassword";
 import ResetPassword from "./components/ResetPassword";
-
-// ==================== NEW IMPORTS FOR ROLE, DEPARTMENT, LOCATION PAGES ====================
+import AssetCategoryPage from "./pages/AssetCategory";
 import RolesManagement from "./pages/RolesManagement";
 import DepartmentsManagement from "./pages/DepartmentsManagement";
 import LocationsManagement from "./pages/LocationsManagement";
 
+// ==================== APP PROVIDERS ====================
 const AppProviders = ({ children }) => (
   <AuthProvider>
     <NotificationProvider>
@@ -69,23 +70,25 @@ const AppProviders = ({ children }) => (
         <ClientProvider>
           <TeamProvider>
             <AssetProvider>
-              <ReportProvider>
-                <AssignmentProvider>
-                  <DashboardProvider>
-                    <ChecklistBuilderProvider>
-                      <RequestChecklistProvider>
-                        <AssetRequestProvider>
-                          <TeamAssignmentProvider>
-                            <ContactInquiryProvider>
-                              {children}
-                            </ContactInquiryProvider>
-                          </TeamAssignmentProvider>
-                        </AssetRequestProvider>
-                      </RequestChecklistProvider>
-                    </ChecklistBuilderProvider>
-                  </DashboardProvider>
-                </AssignmentProvider>
-              </ReportProvider>
+              <AssetCategoryProvider>
+                <ReportProvider>
+                  <AssignmentProvider>
+                    <DashboardProvider>
+                      <ChecklistBuilderProvider>
+                        <RequestChecklistProvider>
+                          <AssetRequestProvider>
+                            <TeamAssignmentProvider>
+                              <ContactInquiryProvider>
+                                {children}
+                              </ContactInquiryProvider>
+                            </TeamAssignmentProvider>
+                          </AssetRequestProvider>
+                        </RequestChecklistProvider>
+                      </ChecklistBuilderProvider>
+                    </DashboardProvider>
+                  </AssignmentProvider>
+                </ReportProvider>
+              </AssetCategoryProvider>
             </AssetProvider>
           </TeamProvider>
         </ClientProvider>
@@ -94,8 +97,9 @@ const AppProviders = ({ children }) => (
   </AuthProvider>
 );
 
+// ==================== PROTECTED ROUTE COMPONENT ====================
 const ProtectedRoute = ({ children, allowedRoles }) => {
-  const { user, loading } = useAuth();
+  const { user, loading, isAuthenticated } = useAuth();
 
   if (loading) {
     return (
@@ -131,36 +135,46 @@ const ProtectedRoute = ({ children, allowedRoles }) => {
     );
   }
 
-  if (!user) return <Navigate to="/login" replace />;
+  if (!isAuthenticated || !user) {
+    console.log("Not authenticated, redirecting to login");
+    return <Navigate to="/login" replace />;
+  }
 
+  console.log("User role:", user.role, "Allowed roles:", allowedRoles);
+
+  // Check if user's role is allowed
   if (!allowedRoles.includes(user.role)) {
-    // Role-based fallback redirects
-    if (user.role === "super_admin")
+    console.log("Role not allowed, redirecting based on role");
+    // Redirect based on role
+    if (user.role === "admin") {
       return <Navigate to="/dashboard" replace />;
-    if (user.role === "admin") return <Navigate to="/dashboard" replace />;
-    if (user.role === "team") return <Navigate to="/team" replace />;
+    }
+    if (user.role === "team") {
+      return <Navigate to="/team" replace />;
+    }
     return <Navigate to="/login" replace />;
   }
 
   return children;
 };
 
+// ==================== MAIN APP COMPONENT ====================
 export default function App() {
   return (
     <AppProviders>
       <Router>
         <Routes>
-          {/* Public Routes */}
+          {/* ==================== PUBLIC ROUTES ==================== */}
           <Route path="/" element={<Main />} />
           <Route path="/login" element={<Login />} />
           <Route path="/forgot-password" element={<ForgotPassword />} />
           <Route path="/reset-password" element={<ResetPassword />} />
 
-          {/* Dashboard Routes - Admin & Super Admin only */}
+          {/* ==================== DASHBOARD ROUTES ==================== */}
           <Route
             path="/dashboard"
             element={
-              <ProtectedRoute allowedRoles={["admin", "super_admin"]}>
+              <ProtectedRoute allowedRoles={["admin"]}>
                 <DashboardLayout>
                   <Dashboard />
                 </DashboardLayout>
@@ -168,11 +182,11 @@ export default function App() {
             }
           />
 
-          {/* Reports Route - All authenticated users */}
+          {/* ==================== REPORTS ROUTES ==================== */}
           <Route
             path="/admin/reports"
             element={
-              <ProtectedRoute allowedRoles={["admin", "super_admin", "team"]}>
+              <ProtectedRoute allowedRoles={["admin", "team"]}>
                 <DashboardLayout>
                   <ReportsPage />
                 </DashboardLayout>
@@ -180,7 +194,6 @@ export default function App() {
             }
           />
 
-          {/* Team Reports Route */}
           <Route
             path="/team/reports"
             element={
@@ -192,11 +205,11 @@ export default function App() {
             }
           />
 
-          {/* Contact Inquiry Management Route - Admin & Super Admin only */}
+          {/* ==================== CONTACT INQUIRY ROUTES ==================== */}
           <Route
             path="/admin/contact-inquiries"
             element={
-              <ProtectedRoute allowedRoles={["admin", "super_admin"]}>
+              <ProtectedRoute allowedRoles={["admin"]}>
                 <DashboardLayout>
                   <ContactInquiries />
                 </DashboardLayout>
@@ -204,14 +217,11 @@ export default function App() {
             }
           />
 
-          {/* ==================== AUDIT LOGS ROUTE - ALL ROLES ==================== */}
-          {/* SUPER_ADMIN: Sees all system logs */}
-          {/* ADMIN: Sees own + team members' logs */}
-          {/* TEAM: Sees only their own logs */}
+          {/* ==================== AUDIT LOGS ROUTES ==================== */}
           <Route
             path="/admin/audit-logs"
             element={
-              <ProtectedRoute allowedRoles={["super_admin", "admin", "team"]}>
+              <ProtectedRoute allowedRoles={["admin"]}>
                 <DashboardLayout>
                   <AuditLogs />
                 </DashboardLayout>
@@ -223,7 +233,7 @@ export default function App() {
           <Route
             path="/admin/checklists"
             element={
-              <ProtectedRoute allowedRoles={["admin", "super_admin"]}>
+              <ProtectedRoute allowedRoles={["admin"]}>
                 <DashboardLayout>
                   <ChecklistPage />
                 </DashboardLayout>
@@ -234,7 +244,7 @@ export default function App() {
           <Route
             path="/admin/checklists/clone"
             element={
-              <ProtectedRoute allowedRoles={["admin", "super_admin"]}>
+              <ProtectedRoute allowedRoles={["admin"]}>
                 <DashboardLayout>
                   <CloneChecklist />
                 </DashboardLayout>
@@ -245,7 +255,7 @@ export default function App() {
           <Route
             path="/admin/create-checklist/global"
             element={
-              <ProtectedRoute allowedRoles={["admin", "super_admin"]}>
+              <ProtectedRoute allowedRoles={["admin"]}>
                 <DashboardLayout>
                   <GlobalChecklist />
                 </DashboardLayout>
@@ -256,7 +266,7 @@ export default function App() {
           <Route
             path="/admin/create-checklist/custom"
             element={
-              <ProtectedRoute allowedRoles={["admin", "super_admin"]}>
+              <ProtectedRoute allowedRoles={["admin"]}>
                 <DashboardLayout>
                   <CustomChecklist />
                 </DashboardLayout>
@@ -267,7 +277,7 @@ export default function App() {
           <Route
             path="/admin/import-checklist/excel"
             element={
-              <ProtectedRoute allowedRoles={["admin", "super_admin"]}>
+              <ProtectedRoute allowedRoles={["admin"]}>
                 <DashboardLayout>
                   <ImportChecklist />
                 </DashboardLayout>
@@ -278,7 +288,7 @@ export default function App() {
           <Route
             path="/admin/assigned-checklists"
             element={
-              <ProtectedRoute allowedRoles={["admin", "super_admin"]}>
+              <ProtectedRoute allowedRoles={["admin"]}>
                 <DashboardLayout>
                   <AssignedChecklist />
                 </DashboardLayout>
@@ -289,7 +299,7 @@ export default function App() {
           <Route
             path="/admin/checklist-analytics/:id"
             element={
-              <ProtectedRoute allowedRoles={["admin", "super_admin"]}>
+              <ProtectedRoute allowedRoles={["admin"]}>
                 <DashboardLayout>
                   <Checklistanalytics />
                 </DashboardLayout>
@@ -300,7 +310,7 @@ export default function App() {
           <Route
             path="/admin/assignment-details/:id"
             element={
-              <ProtectedRoute allowedRoles={["admin", "super_admin"]}>
+              <ProtectedRoute allowedRoles={["admin"]}>
                 <DashboardLayout>
                   <AssignedChecklistDetails />
                 </DashboardLayout>
@@ -311,7 +321,7 @@ export default function App() {
           <Route
             path="/admin/assignment-submit-details/:id"
             element={
-              <ProtectedRoute allowedRoles={["admin", "super_admin"]}>
+              <ProtectedRoute allowedRoles={["admin"]}>
                 <DashboardLayout>
                   <SubmissionDetails />
                 </DashboardLayout>
@@ -323,7 +333,7 @@ export default function App() {
           <Route
             path="/admin/clients"
             element={
-              <ProtectedRoute allowedRoles={["super_admin"]}>
+              <ProtectedRoute allowedRoles={["admin"]}>
                 <DashboardLayout>
                   <ClientManagement />
                 </DashboardLayout>
@@ -334,7 +344,7 @@ export default function App() {
           <Route
             path="/admin/clients-details/:id"
             element={
-              <ProtectedRoute allowedRoles={["super_admin"]}>
+              <ProtectedRoute allowedRoles={["admin"]}>
                 <DashboardLayout>
                   <ClientDetails />
                 </DashboardLayout>
@@ -346,7 +356,7 @@ export default function App() {
           <Route
             path="/admin/team"
             element={
-              <ProtectedRoute allowedRoles={["admin", "super_admin"]}>
+              <ProtectedRoute allowedRoles={["admin"]}>
                 <DashboardLayout>
                   <TeamManagement />
                 </DashboardLayout>
@@ -357,7 +367,7 @@ export default function App() {
           <Route
             path="/admin/team-details/:id"
             element={
-              <ProtectedRoute allowedRoles={["admin", "super_admin"]}>
+              <ProtectedRoute allowedRoles={["admin"]}>
                 <DashboardLayout>
                   <TeamDetails />
                 </DashboardLayout>
@@ -365,12 +375,11 @@ export default function App() {
             }
           />
 
-          {/* ==================== ROLE, DEPARTMENT, LOCATION MANAGEMENT ROUTES ==================== */}
-          {/* Roles Management - Admin & Super Admin only */}
+          {/* ==================== ROLE, DEPARTMENT, LOCATION ROUTES ==================== */}
           <Route
             path="/admin/roles"
             element={
-              <ProtectedRoute allowedRoles={["admin", "super_admin"]}>
+              <ProtectedRoute allowedRoles={["admin"]}>
                 <DashboardLayout>
                   <RolesManagement />
                 </DashboardLayout>
@@ -378,11 +387,10 @@ export default function App() {
             }
           />
 
-          {/* Departments Management - Admin & Super Admin only */}
           <Route
             path="/admin/departments"
             element={
-              <ProtectedRoute allowedRoles={["admin", "super_admin"]}>
+              <ProtectedRoute allowedRoles={["admin"]}>
                 <DashboardLayout>
                   <DepartmentsManagement />
                 </DashboardLayout>
@@ -390,13 +398,24 @@ export default function App() {
             }
           />
 
-          {/* Locations Management - Admin & Super Admin only */}
           <Route
             path="/admin/locations"
             element={
-              <ProtectedRoute allowedRoles={["admin", "super_admin"]}>
+              <ProtectedRoute allowedRoles={["admin"]}>
                 <DashboardLayout>
                   <LocationsManagement />
+                </DashboardLayout>
+              </ProtectedRoute>
+            }
+          />
+
+          {/* ==================== ASSET CATEGORY ROUTES ==================== */}
+          <Route
+            path="/admin/asset-categories"
+            element={
+              <ProtectedRoute allowedRoles={["admin", "team"]}>
+                <DashboardLayout>
+                  <AssetCategoryPage />
                 </DashboardLayout>
               </ProtectedRoute>
             }
@@ -406,7 +425,7 @@ export default function App() {
           <Route
             path="/admin/assets"
             element={
-              <ProtectedRoute allowedRoles={["admin", "super_admin", "team"]}>
+              <ProtectedRoute allowedRoles={["admin", "team"]}>
                 <DashboardLayout>
                   <AssetManagement />
                 </DashboardLayout>
@@ -417,7 +436,7 @@ export default function App() {
           <Route
             path="/admin/assets/add"
             element={
-              <ProtectedRoute allowedRoles={["admin", "super_admin", "team"]}>
+              <ProtectedRoute allowedRoles={["admin", "team"]}>
                 <DashboardLayout>
                   <AddNewAsset />
                 </DashboardLayout>
@@ -428,7 +447,7 @@ export default function App() {
           <Route
             path="/admin/assets/view/:id"
             element={
-              <ProtectedRoute allowedRoles={["admin", "super_admin", "team"]}>
+              <ProtectedRoute allowedRoles={["admin", "team"]}>
                 <DashboardLayout>
                   <AssetView />
                 </DashboardLayout>
@@ -437,22 +456,22 @@ export default function App() {
           />
 
           <Route
-            path="/admin/assets/clone"
+            path="/admin/assets/edit/:id"
             element={
-              <ProtectedRoute allowedRoles={["admin", "super_admin", "team"]}>
+              <ProtectedRoute allowedRoles={["admin", "team"]}>
                 <DashboardLayout>
-                  <CloneAssets />
+                  <EditAsset />
                 </DashboardLayout>
               </ProtectedRoute>
             }
           />
 
           <Route
-            path="/admin/assets/edit/:id"
+            path="/admin/assets/clone"
             element={
-              <ProtectedRoute allowedRoles={["admin", "super_admin", "team"]}>
+              <ProtectedRoute allowedRoles={["admin", "team"]}>
                 <DashboardLayout>
-                  <EditAsset />
+                  <CloneAssets />
                 </DashboardLayout>
               </ProtectedRoute>
             }
@@ -462,42 +481,9 @@ export default function App() {
           <Route
             path="/admin/asset-requests"
             element={
-              <ProtectedRoute allowedRoles={["admin", "super_admin", "team"]}>
+              <ProtectedRoute allowedRoles={["admin", "team"]}>
                 <DashboardLayout>
-                  <AssetRequests />
-                </DashboardLayout>
-              </ProtectedRoute>
-            }
-          />
-
-          <Route
-            path="/admin/asset-requests/create"
-            element={
-              <ProtectedRoute allowedRoles={["admin", "super_admin", "team"]}>
-                <DashboardLayout>
-                  <CreateAssetRequest />
-                </DashboardLayout>
-              </ProtectedRoute>
-            }
-          />
-
-          <Route
-            path="/team/asset-requests/create"
-            element={
-              <ProtectedRoute allowedRoles={["team"]}>
-                <DashboardLayout>
-                  <CreateAssetRequest />
-                </DashboardLayout>
-              </ProtectedRoute>
-            }
-          />
-
-          <Route
-            path="/admin/my-requests"
-            element={
-              <ProtectedRoute allowedRoles={["admin", "super_admin", "team"]}>
-                <DashboardLayout>
-                  <MyRequests />
+                  <AssetRequestsApp />
                 </DashboardLayout>
               </ProtectedRoute>
             }
@@ -506,9 +492,21 @@ export default function App() {
           <Route
             path="/admin/asset-requests/:id"
             element={
-              <ProtectedRoute allowedRoles={["admin", "super_admin", "team"]}>
+              <ProtectedRoute allowedRoles={["admin", "team"]}>
                 <DashboardLayout>
                   <AssetRequestDetails />
+                </DashboardLayout>
+              </ProtectedRoute>
+            }
+          />
+
+          {/* ==================== MY REQUESTS ROUTE ==================== */}
+          <Route
+            path="/team/my-requests"
+            element={
+              <ProtectedRoute allowedRoles={["team"]}>
+                <DashboardLayout>
+                  <MyRequests />
                 </DashboardLayout>
               </ProtectedRoute>
             }
@@ -548,7 +546,19 @@ export default function App() {
             }
           />
 
-          {/* 404 Route */}
+          {/* ==================== CREATE ASSET REQUEST ROUTE ==================== */}
+          <Route
+            path="/admin/create-request"
+            element={
+              <ProtectedRoute allowedRoles={["admin", "team"]}>
+                <DashboardLayout>
+                  <CreateAssetRequest />
+                </DashboardLayout>
+              </ProtectedRoute>
+            }
+          />
+
+          {/* ==================== 404 FALLBACK ==================== */}
           <Route path="*" element={<Navigate to="/login" replace />} />
         </Routes>
       </Router>

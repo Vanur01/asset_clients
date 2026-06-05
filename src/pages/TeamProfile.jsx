@@ -1,5 +1,4 @@
-// pages/team/Profile.jsx
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from "react";
 import {
   Box,
   Container,
@@ -13,715 +12,1137 @@ import {
   Stack,
   IconButton,
   InputAdornment,
-  useTheme,
   alpha,
   Badge,
   Tooltip,
   Fade,
   Alert,
   Snackbar,
-  CircularProgress,
   Divider,
   LinearProgress,
-} from '@mui/material';
-import { styled, keyframes } from '@mui/material/styles';
-import { TeamProvider, useTeam } from '../context/TeamContext';
+  Skeleton,
+} from "@mui/material";
+import { styled, keyframes } from "@mui/material/styles";
+import { useTeam } from "../context/TeamContext";
+import { useAuth } from "../context/AuthContexts";
 
-// Icons
-import MailOutlineIcon from '@mui/icons-material/MailOutline';
-import PhoneIcon from '@mui/icons-material/Phone';
-import LocationOnIcon from '@mui/icons-material/LocationOn';
-import CalendarTodayIcon from '@mui/icons-material/CalendarToday';
-import LockIcon from '@mui/icons-material/Lock';
-import TrendingUpIcon from '@mui/icons-material/TrendingUp';
-import VisibilityIcon from '@mui/icons-material/Visibility';
-import VisibilityOffIcon from '@mui/icons-material/VisibilityOff';
-import EditIcon from '@mui/icons-material/Edit';
-import SaveIcon from '@mui/icons-material/Save';
-import CancelIcon from '@mui/icons-material/Cancel';
-import BadgeIcon from '@mui/icons-material/Badge';
-import EmailIcon from '@mui/icons-material/Email';
-import PhoneInTalkIcon from '@mui/icons-material/PhoneInTalk';
-import HomeIcon from '@mui/icons-material/Home';
-import WorkIcon from '@mui/icons-material/Work';
-import AssignmentIcon from '@mui/icons-material/Assignment';
-import BusinessCenterIcon from '@mui/icons-material/BusinessCenter';
-import CheckCircleIcon from '@mui/icons-material/CheckCircle';
-import TaskAltIcon from '@mui/icons-material/TaskAlt';
-import SpeedIcon from '@mui/icons-material/Speed';
+import MailOutlineIcon from "@mui/icons-material/MailOutline";
+import PhoneIcon from "@mui/icons-material/Phone";
+import LocationOnIcon from "@mui/icons-material/LocationOn";
+import CalendarTodayIcon from "@mui/icons-material/CalendarToday";
+import LockIcon from "@mui/icons-material/Lock";
+import TrendingUpIcon from "@mui/icons-material/TrendingUp";
+import VisibilityIcon from "@mui/icons-material/Visibility";
+import VisibilityOffIcon from "@mui/icons-material/VisibilityOff";
+import EditIcon from "@mui/icons-material/Edit";
+import SaveIcon from "@mui/icons-material/Save";
+import CancelIcon from "@mui/icons-material/Cancel";
+import EmailIcon from "@mui/icons-material/Email";
+import PhoneInTalkIcon from "@mui/icons-material/PhoneInTalk";
+import HomeIcon from "@mui/icons-material/Home";
+import WorkIcon from "@mui/icons-material/Work";
+import CheckCircleIcon from "@mui/icons-material/CheckCircle";
+import TaskAltIcon from "@mui/icons-material/TaskAlt";
+import PersonOutlineIcon from "@mui/icons-material/PersonOutline";
+import ShieldIcon from "@mui/icons-material/Shield";
+import KeyIcon from "@mui/icons-material/Key";
+import InfoOutlinedIcon from "@mui/icons-material/InfoOutlined";
+import AssessmentIcon from "@mui/icons-material/Assessment";
+import AssignmentTurnedInIcon from "@mui/icons-material/AssignmentTurnedIn";
+import EmojiEventsIcon from "@mui/icons-material/EmojiEvents";
 
 // ─── Animations ────────────────────────────────────────────────────────────────
-const fadeSlideUp = keyframes`
-  from { opacity: 0; transform: translateY(12px); }
+const rise = keyframes`
+  from { opacity: 0; transform: translateY(16px); }
   to   { opacity: 1; transform: translateY(0); }
 `;
 
-const pulse = keyframes`
-  0%, 100% { box-shadow: 0 0 0 0 rgba(16,185,129,0.35); }
-  50%       { box-shadow: 0 0 0 5px rgba(16,185,129,0); }
+const onlinePulse = keyframes`
+  0%, 100% { box-shadow: 0 0 0 0 rgba(34,197,94,0.45); }
+  60%       { box-shadow: 0 0 0 6px rgba(34,197,94,0); }
 `;
 
-// ─── Design Tokens ─────────────────────────────────────────────────────────────
-const TOKEN = {
-  navy:    '#0f4c61',
-  navyDim: alpha('#0f4c61', 0.08),
-  navyMid: alpha('#0f4c61', 0.15),
-  ink:     '#1e293b',
-  muted:   '#64748b',
-  ghost:   '#94a3b8',
-  surface: '#f8fafc',
-  white:   '#ffffff',
-  border:  alpha('#cbd5e1', 0.45),
-  green:   '#10b981',
-  greenBg: alpha('#10b981', 0.1),
-  red:     '#ef4444',
-  redBg:   alpha('#ef4444', 0.1),
-  radius:  14,
-  radiusSm: 10,
+// ─── Palette ──────────────────────────────────────────────────────────────────
+const P = {
+  // Brand
+  slate900: "#0f172a",
+  slate700: "#334155",
+  slate500: "#64748b",
+  slate400: "#94a3b8",
+  slate200: "#e2e8f0",
+  slate100: "#f1f5f9",
+  slate50: "#f8fafc",
+  white: "#ffffff",
+  // Accent — deep teal
+  teal700: "#0f4c61",
+  teal600: "#07465c",
+  teal500: "#062935",
+  teal100: "#ccfbf1",
+  teal50: "#f0fdfa",
+  // Status
+  green500: "#22c55e",
+  green100: "#dcfce7",
+  red500: "#ef4444",
+  red100: "#fee2e2",
+  amber500: "#f59e0b",
+  amber100: "#fef3c7",
+  blue500: "#3b82f6",
+  blue100: "#dbeafe",
+  purple500: "#8b5cf6",
+  purple100: "#ede9fe",
 };
 
-// ─── Styled Components ─────────────────────────────────────────────────────────
+// ─── Styled primitives ────────────────────────────────────────────────────────
+const Page = styled(Box)({
+  minHeight: "100vh",
+  background: P.slate50,
+  paddingBottom: 64,
+});
 
-const PageContainer = styled(Box)({
-  minHeight: '100vh',
-  padding: '20px 16px 40px',
-  '@media (min-width:900px)': { padding: '28px 24px 48px' },
+const TopBar = styled(Box)({
+  background: P.white,
+  borderBottom: `1px solid ${P.slate200}`,
+  padding: "16px 24px",
+  position: "sticky",
+  top: 0,
+  width:"1130px",
+  marginLeft:"25px",
+  zIndex: 10,
 });
 
 const Card = styled(Paper)({
-  borderRadius: TOKEN.radius,
-  background: TOKEN.white,
-  border: `1px solid ${TOKEN.border}`,
-  boxShadow: '0 2px 8px rgba(15,76,97,0.04), 0 1px 2px rgba(0,0,0,0.04)',
-  overflow: 'hidden',
-  animation: `${fadeSlideUp} 0.35s ease both`,
-  transition: 'box-shadow 0.2s ease, border-color 0.2s ease',
-  '&:hover': {
-    boxShadow: '0 8px 28px rgba(15,76,97,0.09)',
-    borderColor: alpha(TOKEN.navy, 0.18),
-  },
+  background: P.white,
+  border: `1px solid ${P.slate200}`,
+  borderRadius: 16,
+  boxShadow: "0 1px 3px rgba(0,0,0,0.04), 0 1px 2px rgba(0,0,0,0.03)",
+  overflow: "hidden",
+  animation: `${rise} 0.45s cubic-bezier(0.22, 1, 0.36, 1) both`,
 });
 
-const SectionHeader = styled(Box)({
-  padding: '12px 20px',
-  borderBottom: `1px solid ${TOKEN.border}`,
-  background: `linear-gradient(90deg, ${alpha(TOKEN.surface, 0.8)}, ${TOKEN.white})`,
-  display: 'flex',
-  justifyContent: 'space-between',
-  alignItems: 'center',
+const CardHead = styled(Box)({
+  padding: "14px 20px",
+  borderBottom: `1px solid ${P.slate200}`,
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "space-between",
+  gap: 12,
 });
 
-const IconBox = styled(Box)({
-  width: 28,
-  height: 28,
-  borderRadius: 8,
-  background: TOKEN.navyDim,
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  flexShrink: 0,
-  '& .MuiSvgIcon-root': { fontSize: '0.85rem', color: TOKEN.navy },
-});
+const CardBody = styled(Box)({ padding: "20px" });
 
-const StyledField = styled(TextField)({
-  '& .MuiOutlinedInput-root': {
-    borderRadius: TOKEN.radiusSm,
-    fontSize: '0.78rem',
-    background: TOKEN.white,
-    transition: 'box-shadow 0.15s ease',
-    '& fieldset': { borderColor: TOKEN.border, borderWidth: 1 },
-    '&:hover fieldset': { borderColor: alpha(TOKEN.navy, 0.35) },
-    '&.Mui-focused': {
-      boxShadow: `0 0 0 3px ${alpha(TOKEN.navy, 0.08)}`,
-    },
-    '&.Mui-focused fieldset': { borderColor: TOKEN.navy, borderWidth: 1.5 },
-    '&.Mui-disabled': { background: TOKEN.surface },
-    '&.Mui-disabled fieldset': { borderColor: TOKEN.border },
-  },
-  '& .MuiInputBase-input': {
-    fontSize: '0.78rem',
-    padding: '9px 12px',
-    color: TOKEN.ink,
-    '&::placeholder': { color: TOKEN.ghost, opacity: 1 },
-  },
-  '& .MuiInputBase-input.Mui-disabled': { color: TOKEN.muted, WebkitTextFillColor: TOKEN.muted },
-  '& .MuiInputLabel-root': { fontSize: '0.7rem', color: TOKEN.muted },
-  '& .MuiInputBase-inputMultiline': {
-    fontSize: '0.78rem',
-    lineHeight: 1.6,
-    padding: '9px 12px',
-  },
-});
-
-const PrimaryBtn = styled(Button)({
-  background: TOKEN.navy,
-  color: TOKEN.white,
-  fontWeight: 600,
-  fontSize: '0.72rem',
-  padding: '7px 18px',
-  borderRadius: TOKEN.radiusSm,
-  textTransform: 'none',
-  letterSpacing: '0.2px',
-  boxShadow: `0 3px 10px ${alpha(TOKEN.navy, 0.22)}`,
-  transition: 'all 0.18s ease',
-  '&:hover': {
-    background: alpha(TOKEN.navy, 0.88),
-    transform: 'translateY(-1px)',
-    boxShadow: `0 5px 16px ${alpha(TOKEN.navy, 0.28)}`,
-  },
-  '&:active': { transform: 'translateY(0)' },
-  '&.Mui-disabled': { background: alpha(TOKEN.navy, 0.4), color: TOKEN.white },
-});
-
-const SecondaryBtn = styled(Button)({
-  color: TOKEN.muted,
-  fontWeight: 500,
-  fontSize: '0.72rem',
-  padding: '7px 18px',
-  borderRadius: TOKEN.radiusSm,
-  textTransform: 'none',
-  border: `1px solid ${TOKEN.border}`,
-  background: TOKEN.white,
-  transition: 'all 0.18s ease',
-  '&:hover': {
-    background: TOKEN.surface,
-    borderColor: alpha(TOKEN.navy, 0.3),
-    color: TOKEN.navy,
-  },
-});
-
-const InfoRow = styled(Box)({
-  display: 'flex',
-  alignItems: 'center',
-  gap: 8,
-  padding: '4px 0',
-  '& .MuiSvgIcon-root': { fontSize: '0.85rem', color: TOKEN.ghost },
-});
-
-const Label = styled(Typography)({
-  fontSize: '0.58rem',
+const Tag = styled(Box)(({ color = P.teal700, bg = P.teal50 }) => ({
+  display: "inline-flex",
+  alignItems: "center",
+  padding: "3px 10px",
+  borderRadius: 99,
+  fontSize: "0.6875rem",
   fontWeight: 700,
-  color: TOKEN.ghost,
-  textTransform: 'uppercase',
-  letterSpacing: '0.5px',
-  marginBottom: 4,
-});
-
-const StatBadge = styled(Box)(({ color = TOKEN.navy }) => ({
-  display: 'inline-flex',
-  alignItems: 'center',
-  gap: 4,
-  padding: '3px 8px',
-  borderRadius: 20,
-  background: alpha(color, 0.08),
-  color: color,
-  fontSize: '0.58rem',
-  fontWeight: 700,
-  letterSpacing: '0.3px',
+  letterSpacing: "0.3px",
+  color,
+  background: bg,
+  border: `1px solid ${alpha(color, 0.18)}`,
 }));
 
-// ─── ProfileContent ─────────────────────────────────────────────────────────────
+const Field = styled(TextField)({
+  "& .MuiOutlinedInput-root": {
+    borderRadius: 10,
+    fontSize: "0.8125rem",
+    background: P.white,
+    "& fieldset": { borderColor: P.slate200, borderWidth: 1 },
+    "&:hover fieldset": { borderColor: P.slate400 },
+    "&.Mui-focused fieldset": { borderColor: P.teal600, borderWidth: 1.5 },
+    "&.Mui-focused": { boxShadow: `0 0 0 3px ${alpha(P.teal600, 0.1)}` },
+    "&.Mui-disabled": { background: P.slate50 },
+    "&.Mui-disabled fieldset": { borderColor: P.slate200 },
+  },
+  "& .MuiInputBase-input": {
+    fontSize: "0.8125rem",
+    padding: "10px 14px",
+    color: P.slate900,
+    "&::placeholder": { color: P.slate400, opacity: 1 },
+  },
+  "& .MuiInputBase-input.Mui-disabled": {
+    color: P.slate500,
+    WebkitTextFillColor: P.slate500,
+  },
+  "& .MuiFormHelperText-root": { fontSize: "0.7rem" },
+  "& .MuiInputLabel-root": { fontSize: "0.75rem" },
+});
+
+const Lbl = styled(Typography)({
+  fontSize: "0.6875rem",
+  fontWeight: 700,
+  color: P.slate500,
+  textTransform: "uppercase",
+  letterSpacing: "0.6px",
+  marginBottom: 6,
+  display: "block",
+});
+
+const TealBtn = styled(Button)({
+  background: P.teal700,
+  color: P.white,
+  fontWeight: 600,
+  fontSize: "0.75rem",
+  padding: "8px 20px",
+  borderRadius: 10,
+  textTransform: "none",
+  letterSpacing: "0.2px",
+  boxShadow: `0 2px 8px ${alpha(P.teal700, 0.22)}`,
+  transition: "all 0.2s",
+  "&:hover": {
+    background: P.teal600,
+    transform: "translateY(-1px)",
+    boxShadow: `0 4px 14px ${alpha(P.teal700, 0.3)}`,
+  },
+  "&:active": { transform: "translateY(0)" },
+  "&.Mui-disabled": {
+    background: P.slate200,
+    color: P.slate400,
+    boxShadow: "none",
+  },
+});
+
+const GhostBtn = styled(Button)({
+  color: P.slate500,
+  fontWeight: 500,
+  fontSize: "0.75rem",
+  padding: "8px 20px",
+  borderRadius: 10,
+  textTransform: "none",
+  border: `1px solid ${P.slate200}`,
+  background: P.white,
+  transition: "all 0.2s",
+  "&:hover": {
+    background: P.slate50,
+    borderColor: P.slate400,
+    color: P.slate700,
+  },
+});
+
+const MetricTile = styled(Box)(({ accent = P.teal700 }) => ({
+  padding: "14px 16px",
+  borderRadius: 12,
+  background: alpha(accent, 0.05),
+  border: `1px solid ${alpha(accent, 0.12)}`,
+  transition: "all 0.2s",
+  "&:hover": { background: alpha(accent, 0.08), transform: "translateY(-1px)" },
+}));
+
+const InfoLine = ({ icon: Icon, label, value }) => (
+  <Box sx={{ display: "flex", alignItems: "flex-start", gap: 1.5, py: 0.75 }}>
+    <Box
+      sx={{
+        width: 30,
+        height: 30,
+        borderRadius: 8,
+        background: P.slate100,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        flexShrink: 0,
+      }}
+    >
+      <Icon sx={{ fontSize: "0.85rem", color: P.slate500 }} />
+    </Box>
+    <Box>
+      <Typography
+        sx={{
+          fontSize: "0.6rem",
+          color: P.slate400,
+          fontWeight: 600,
+          textTransform: "uppercase",
+          letterSpacing: "0.5px",
+        }}
+      >
+        {label}
+      </Typography>
+      <Typography
+        sx={{
+          fontSize: "0.8125rem",
+          color: P.slate700,
+          fontWeight: 500,
+          lineHeight: 1.4,
+        }}
+      >
+        {value || "—"}
+      </Typography>
+    </Box>
+  </Box>
+);
+
+const SectionIcon = ({ children }) => (
+  <Box
+    sx={{
+      width: 30,
+      height: 30,
+      borderRadius: 8,
+      background: P.teal50,
+      border: `1px solid ${P.teal100}`,
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      "& .MuiSvgIcon-root": { fontSize: "0.95rem", color: P.teal700 },
+    }}
+  >
+    {children}
+  </Box>
+);
+
+// ─── Profile Content ──────────────────────────────────────────────────────────
 const ProfileContent = () => {
-  const theme = useTheme();
+  const { user } = useAuth();
   const {
     profile,
-    loading,
+    loading: teamLoading,
     updateTeamProfile,
     changePassword,
     formatDate,
     formatJoinDate,
-    getFullName,
-    getInitials,
     fetchTeamProfile,
   } = useTeam();
 
-  const [showPwd, setShowPwd] = useState({ current: false, next: false, confirm: false });
+  const [showPass, setShowPass] = useState({
+    current: false,
+    new: false,
+    confirm: false,
+  });
   const [isEditing, setIsEditing] = useState(false);
-  const [passwordData, setPasswordData] = useState({ currentPassword: '', newPassword: '', confirmPassword: '' });
-  const [formData, setFormData] = useState({ firstName: '', lastName: '', phone: '', location: '', bio: '', department: '' });
-  const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
+  const [passData, setPassData] = useState({
+    currentPassword: "",
+    newPassword: "",
+    confirmPassword: "",
+  });
+  const [formData, setFormData] = useState({
+    firstName: "",
+    lastName: "",
+    phone: "",
+    location: "",
+    bio: "",
+    department: "",
+  });
+  const [snack, setSnack] = useState({
+    open: false,
+    message: "",
+    severity: "success",
+  });
+  const [passErrors, setPassErrors] = useState({});
+  const [saving, setSaving] = useState(false);
+  const [changingPass, setChangingPass] = useState(false);
+
+  useEffect(() => {
+    fetchTeamProfile();
+  }, [fetchTeamProfile]);
 
   useEffect(() => {
     if (profile) {
       setFormData({
-        firstName:  profile.firstName  || '',
-        lastName:   profile.lastName   || '',
-        phone:      profile.phone      || '',
-        location:   profile.location   || '',
-        bio:        profile.bio        || '',
-        department: profile.department || '',
+        firstName: profile.firstName || "",
+        lastName: profile.lastName || "",
+        phone: profile.phone || "",
+        location: profile.location || "",
+        bio: profile.bio || "",
+        department: profile.department || "",
       });
     }
   }, [profile]);
 
-  useEffect(() => { fetchTeamProfile(); }, [fetchTeamProfile]);
-
-  const handleFormChange = (e) => setFormData({ ...formData, [e.target.name]: e.target.value });
-  const handlePasswordChange = (e) => setPasswordData({ ...passwordData, [e.target.name]: e.target.value });
+  const toast = (message, severity = "success") =>
+    setSnack({ open: true, message, severity });
 
   const handleUpdateProfile = async () => {
-    const r = await updateTeamProfile(formData);
-    setSnackbar({ open: true, message: r.success ? r.message : r.error, severity: r.success ? 'success' : 'error' });
-    if (r.success) setIsEditing(false);
+    setSaving(true);
+    const result = await updateTeamProfile(formData);
+    setSaving(false);
+    toast(
+      result.success ? result.message : result.error,
+      result.success ? "success" : "error",
+    );
+    if (result.success) setIsEditing(false);
   };
 
   const handleChangePassword = async () => {
-    const r = await changePassword(passwordData.currentPassword, passwordData.newPassword, passwordData.confirmPassword);
-    setSnackbar({ open: true, message: r.success ? r.message : r.error, severity: r.success ? 'success' : 'error' });
-    if (r.success) setPasswordData({ currentPassword: '', newPassword: '', confirmPassword: '' });
+    if (passData.newPassword !== passData.confirmPassword)
+      return toast("Passwords do not match", "error");
+    if (passData.newPassword.length < 6)
+      return toast("Password must be at least 6 characters", "error");
+    setChangingPass(true);
+    const result = await changePassword(
+      passData.currentPassword,
+      passData.newPassword,
+      passData.confirmPassword,
+    );
+    setChangingPass(false);
+    toast(result.message, result.success ? "success" : "error");
+    if (result.success) {
+      setPassData({
+        currentPassword: "",
+        newPassword: "",
+        confirmPassword: "",
+      });
+      setPassErrors({});
+    }
   };
 
-  const handleCancelEdit = () => {
+  const handlePassChange = (e) => {
+    const { name, value } = e.target;
+    setPassData({ ...passData, [name]: value });
+    if (name === "newPassword") {
+      const errs = {};
+      if (value.length < 6) errs.newPassword = "At least 6 characters required";
+      if (passData.confirmPassword && value !== passData.confirmPassword)
+        errs.confirmPassword = "Passwords do not match";
+      setPassErrors(errs);
+    }
+    if (name === "confirmPassword") {
+      setPassErrors(
+        value !== passData.newPassword
+          ? { confirmPassword: "Passwords do not match" }
+          : {},
+      );
+    }
+  };
+
+  const cancelEdit = () => {
     setIsEditing(false);
-    setFormData({
-      firstName:  profile?.firstName  || '',
-      lastName:   profile?.lastName   || '',
-      phone:      profile?.phone      || '',
-      location:   profile?.location   || '',
-      bio:        profile?.bio        || '',
-      department: profile?.department || '',
-    });
+    if (profile)
+      setFormData({
+        firstName: profile.firstName || "",
+        lastName: profile.lastName || "",
+        phone: profile.phone || "",
+        location: profile.location || "",
+        bio: profile.bio || "",
+        department: profile.department || "",
+      });
   };
 
-  if (loading && !profile) {
+  const getInitials = () => {
+    if (profile?.firstName && profile?.lastName)
+      return `${profile.firstName[0]}${profile.lastName[0]}`.toUpperCase();
+    return profile?.email?.[0]?.toUpperCase() || "?";
+  };
+  const getFullName = () => {
+    if (profile?.firstName && profile?.lastName)
+      return `${profile.firstName} ${profile.lastName}`;
+    return profile?.email?.split("@")[0] || "Team Member";
+  };
+  const getRoleDisplay = () => {
+    if (profile?.roleDetails?.name) return profile.roleDetails.name;
+    if (profile?.teamRole)
+      return profile.teamRole.replace("_", " ").toUpperCase();
+    return profile?.role || "Team Member";
+  };
+  const getDeptName = () =>
+    profile?.departmentDetails?.name || profile?.department || "Not specified";
+  const getLocName = () =>
+    profile?.locationDetails?.name || profile?.location || "Not specified";
+
+  const isActive = profile?.status === "active";
+  const assigned = profile?.assignedCount || 0;
+  const completed = profile?.completedCount || 0;
+  const pending = assigned - completed;
+  const rate =
+    profile?.performanceScore ||
+    (assigned > 0 ? Math.round((completed / assigned) * 100) : 0);
+
+  if (teamLoading && !profile) {
     return (
-      <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '70vh' }}>
-        <CircularProgress sx={{ color: TOKEN.navy }} size={32} />
-      </Box>
+      <Page>
+        <TopBar>
+          <Skeleton width={120} height={24} />
+        </TopBar>
+        <Container maxWidth="lg" sx={{ pt: 4 }}>
+          <Grid container spacing={3}>
+            <Grid item xs={12} md={4}>
+              <Card sx={{ p: 3 }}>
+                <Skeleton
+                  variant="circular"
+                  width={88}
+                  height={88}
+                  sx={{ mx: "auto", mb: 2 }}
+                />
+                <Skeleton
+                  variant="text"
+                  width="70%"
+                  sx={{ mx: "auto", mb: 1 }}
+                />
+                <Skeleton
+                  variant="text"
+                  width="50%"
+                  sx={{ mx: "auto", mb: 3 }}
+                />
+                <Skeleton
+                  variant="rectangular"
+                  height={100}
+                  sx={{ borderRadius: 2 }}
+                />
+              </Card>
+            </Grid>
+            <Grid item xs={12} md={8}>
+              <Card sx={{ p: 3 }}>
+                <Skeleton
+                  variant="text"
+                  width="40%"
+                  height={32}
+                  sx={{ mb: 3 }}
+                />
+                <Grid container spacing={2}>
+                  {[1, 2, 3, 4].map((i) => (
+                    <Grid item xs={12} sm={6} key={i}>
+                      <Skeleton
+                        variant="rectangular"
+                        height={52}
+                        sx={{ borderRadius: 2 }}
+                      />
+                    </Grid>
+                  ))}
+                </Grid>
+              </Card>
+            </Grid>
+          </Grid>
+        </Container>
+      </Page>
     );
   }
 
-  const isActive       = profile?.status === 'active';
-  const completionRate = profile?.stats?.completionRate || 0;
-  const assignedCount  = profile?.stats?.assignedCount  || 0;
-
-  const pwdFields = [
-    { key: 'current', name: 'currentPassword', label: 'Current Password',     placeholder: 'Enter current password' },
-    { key: 'next',    name: 'newPassword',      label: 'New Password',         placeholder: 'Min. 6 characters' },
-    { key: 'confirm', name: 'confirmPassword',  label: 'Confirm New Password', placeholder: 'Re-enter new password' },
-  ];
-
   return (
-    <PageContainer>
-      <Container maxWidth="lg" sx={{ px: { xs: 1, sm: 1.5, md: 2 } }}>
-        <Grid container spacing={2.5}>
+    <Page>
+      {/* Top bar */}
+      <TopBar>
+        <Box
+          sx={{
+            display: "flex",
+            alignItems: "center",
+            borderRadius: 2,
+            justifyContent: "space-between",
+          }}
+        >
+          <Box>
+            <Typography
+              sx={{ fontWeight: 700, fontSize: "1rem", color: P.slate900 }}
+            >
+              My Profile
+            </Typography>
+            <Typography sx={{ fontSize: "0.75rem", color: P.slate400 }}>
+              Manage your personal information and account settings
+            </Typography>
+          </Box>
+        </Box>
+      </TopBar>
 
-          {/* ── Left Column ─────────────────────────────────────────────────── */}
-          <Grid item xs={12} md={4}>
-            <Stack spacing={2.5}>
+      <Container maxWidth="xl" sx={{ pt: 4, px: { xs: 2, sm: 3 } }}>
+        {/* Row 1: Profile Card and Stats Cards - Side by Side */}
+        <Grid container spacing={3}>
+          {/* Left side - Profile Card */}
+          <Grid item xs={12} md={5} lg={4}>
+            <Card
+              sx={{ animationDelay: "0ms", height: "100%", width: "300px" }}
+            >
+              {/* Cover */}
+              <Box
+                sx={{
+                  height: 80,
+                  background: `linear-gradient(135deg, ${P.teal700} 0%, ${P.teal500} 100%)`,
+                  position: "relative",
+                }}
+              >
+                <Box
+                  sx={{
+                    position: "absolute",
+                    inset: 0,
+                    backgroundImage:
+                      "radial-gradient(circle at 80% 50%, rgba(255,255,255,0.06) 0%, transparent 60%)",
+                  }}
+                />
+              </Box>
 
-              {/* Identity Card */}
-              <Card>
-                {/* Tinted header strip */}
-                <Box sx={{
-                  height: 72,
-                  background: `linear-gradient(135deg, ${TOKEN.navy} 0%, ${alpha(TOKEN.navy, 0.75)} 100%)`,
-                  position: 'relative',
-                }} />
-
-                <Box sx={{ px: 2.5, pb: 2.5 }}>
-                  {/* Avatar overlap */}
-                  <Box sx={{ mt: '-38px', mb: 1.5, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
-                    <Badge
-                      overlap="circular"
-                      anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
-                      badgeContent={
-                        <Box sx={{
-                          width: 13, height: 13,
-                          bgcolor: isActive ? TOKEN.green : TOKEN.red,
-                          border: '2.5px solid #fff',
-                          borderRadius: '50%',
-                          animation: isActive ? `${pulse} 2.5s infinite` : 'none',
-                        }} />
-                      }
-                    >
-                      <Avatar sx={{
-                        width: 72, height: 72,
-                        bgcolor: TOKEN.navy,
-                        fontSize: '1.5rem',
-                        fontWeight: 700,
-                        border: '3px solid #fff',
-                        boxShadow: '0 4px 14px rgba(15,76,97,0.25)',
-                        letterSpacing: '-0.5px',
-                      }}>
-                        {getInitials()}
-                      </Avatar>
-                    </Badge>
-                    <Chip
-                      label={isActive ? 'Active' : 'Inactive'}
-                      size="small"
+              <CardBody sx={{ pt: 0 }}>
+                {/* Avatar */}
+                <Box
+                  sx={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "flex-end",
+                    mt: "-36px",
+                    mb: 2,
+                  }}
+                >
+                  <Badge
+                    overlap="circular"
+                    anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
+                    badgeContent={
+                      <Box
+                        sx={{
+                          width: 13,
+                          height: 13,
+                          bgcolor: isActive ? P.green500 : P.red500,
+                          border: "2px solid #fff",
+                          borderRadius: "50%",
+                          animation: isActive
+                            ? `${onlinePulse} 2.2s ease infinite`
+                            : "none",
+                        }}
+                      />
+                    }
+                  >
+                    <Avatar
                       sx={{
-                        height: 22,
-                        fontSize: '0.58rem',
-                        fontWeight: 700,
-                        letterSpacing: '0.3px',
-                        bgcolor: isActive ? TOKEN.greenBg : TOKEN.redBg,
-                        color:   isActive ? TOKEN.green   : TOKEN.red,
-                        border:  `1px solid ${isActive ? alpha(TOKEN.green, 0.25) : alpha(TOKEN.red, 0.25)}`,
+                        width: 72,
+                        height: 72,
+                        background: `linear-gradient(135deg, ${P.teal700}, ${P.teal500})`,
+                        border: "3px solid #fff",
+                        boxShadow: "0 4px 14px rgba(13,125,125,0.25)",
+                        fontSize: "1.4rem",
+                        fontWeight: 800,
                       }}
-                    />
-                  </Box>
-
-                  <Typography sx={{ fontWeight: 700, fontSize: '1rem', color: TOKEN.ink, lineHeight: 1.2 }}>
-                    {getFullName()}
-                  </Typography>
-                  <Typography sx={{ color: TOKEN.muted, fontSize: '0.68rem', mt: 0.25, mb: 1.5 }}>
-                    {profile?.roleDisplay || profile?.teamRole || 'Team Member'}
-                  </Typography>
-
-                  <Divider sx={{ borderColor: TOKEN.border, mb: 1.5 }} />
-
-                  <Stack spacing={0.8}>
-                    {[
-                      { icon: <MailOutlineIcon />,   text: profile?.email        || 'N/A' },
-                      { icon: <PhoneIcon />,          text: profile?.phone        || 'Not provided' },
-                      { icon: <LocationOnIcon />,     text: profile?.location     || 'Not specified' },
-                      { icon: <BusinessCenterIcon />, text: profile?.organization || 'N/A' },
-                      { icon: <CalendarTodayIcon />,  text: `Joined ${formatJoinDate(profile?.joinDate)}` },
-                    ].map(({ icon, text }, i) => (
-                      <InfoRow key={i}>
-                        {icon}
-                        <Typography sx={{ fontSize: '0.72rem', color: '#475569', fontWeight: 500 }}>{text}</Typography>
-                      </InfoRow>
-                    ))}
-                  </Stack>
-                </Box>
-              </Card>
-
-              {/* Change Password Card */}
-              <Card>
-                <SectionHeader>
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                    <IconBox><LockIcon /></IconBox>
-                    <Typography sx={{ fontWeight: 700, fontSize: '0.8rem', color: TOKEN.ink }}>Change Password</Typography>
-                  </Box>
-                </SectionHeader>
-
-                <Box sx={{ p: 2.5 }}>
-                  <Stack spacing={1.6}>
-                    {pwdFields.map(({ key, name, label, placeholder }) => (
-                      <Box key={key}>
-                        <Label>{label}</Label>
-                        <StyledField
-                          fullWidth
-                          size="small"
-                          name={name}
-                          type={showPwd[key] ? 'text' : 'password'}
-                          placeholder={placeholder}
-                          value={passwordData[name]}
-                          onChange={handlePasswordChange}
-                          InputProps={{
-                            endAdornment: (
-                              <InputAdornment position="end">
-                                <IconButton
-                                  onClick={() => setShowPwd(p => ({ ...p, [key]: !p[key] }))}
-                                  edge="end" size="small"
-                                  sx={{ p: 0.4, color: TOKEN.ghost, '&:hover': { color: TOKEN.navy } }}
-                                >
-                                  {showPwd[key]
-                                    ? <VisibilityOffIcon sx={{ fontSize: '0.85rem' }} />
-                                    : <VisibilityIcon   sx={{ fontSize: '0.85rem' }} />}
-                                </IconButton>
-                              </InputAdornment>
-                            ),
-                          }}
-                        />
-                      </Box>
-                    ))}
-
-                    <PrimaryBtn
-                      fullWidth
-                      startIcon={<LockIcon sx={{ fontSize: '0.85rem !important' }} />}
-                      onClick={handleChangePassword}
-                      disabled={loading}
-                      sx={{ mt: 0.5 }}
                     >
-                      {loading ? <CircularProgress size={14} color="inherit" /> : 'Update Password'}
-                    </PrimaryBtn>
-                  </Stack>
+                      {getInitials()}
+                    </Avatar>
+                  </Badge>
+                  <Tag color={P.teal700} bg={P.teal50}>
+                    {getRoleDisplay()}
+                  </Tag>
                 </Box>
-              </Card>
-            </Stack>
+
+                <Typography
+                  sx={{
+                    fontWeight: 800,
+                    fontSize: "1.1rem",
+                    color: P.slate900,
+                  }}
+                >
+                  {getFullName()}
+                </Typography>
+                <Typography
+                  sx={{ fontSize: "0.8rem", color: P.slate400, mb: 2.5 }}
+                >
+                  {profile?.email}
+                </Typography>
+
+                <Divider sx={{ borderColor: P.slate200, mb: 2 }} />
+
+                <Stack spacing={0.5}>
+                  <InfoLine
+                    icon={MailOutlineIcon}
+                    label="Email"
+                    value={profile?.email}
+                  />
+                  <InfoLine
+                    icon={PhoneIcon}
+                    label="Phone"
+                    value={profile?.phone || "Not provided"}
+                  />
+                  <InfoLine
+                    icon={WorkIcon}
+                    label="Department"
+                    value={getDeptName()}
+                  />
+                  <InfoLine
+                    icon={LocationOnIcon}
+                    label="Location"
+                    value={getLocName()}
+                  />
+                  <InfoLine
+                    icon={CalendarTodayIcon}
+                    label="Joined"
+                    value={formatJoinDate(
+                      profile?.joinDate || profile?.createdAt,
+                    )}
+                  />
+                  {(profile?.lastActiveAt || profile?.lastLogin) && (
+                    <InfoLine
+                      icon={TrendingUpIcon}
+                      label="Last active"
+                      value={formatDate(
+                        profile.lastActiveAt || profile.lastLogin,
+                      )}
+                    />
+                  )}
+                </Stack>
+
+                {profile?.bio && (
+                  <Box
+                    sx={{
+                      mt: 2.5,
+                      pt: 2.5,
+                      borderTop: `1px solid ${P.slate200}`,
+                    }}
+                  >
+                    <Typography
+                      sx={{
+                        fontSize: "0.6875rem",
+                        fontWeight: 700,
+                        color: P.slate400,
+                        textTransform: "uppercase",
+                        letterSpacing: "0.6px",
+                        mb: 1,
+                      }}
+                    >
+                      About
+                    </Typography>
+                    <Typography
+                      sx={{
+                        fontSize: "0.8125rem",
+                        color: P.slate600,
+                        lineHeight: 1.65,
+                      }}
+                    >
+                      {profile.bio}
+                    </Typography>
+                  </Box>
+                )}
+              </CardBody>
+            </Card>
           </Grid>
 
-          {/* ── Right Column ────────────────────────────────────────────────── */}
-          <Grid item xs={12} md={8}>
-            <Stack spacing={2.5}>
-
-              {/* Personal Information Card */}
-              <Card sx={{width:"800px"}}>
-                <SectionHeader>
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                    <IconBox><BadgeIcon /></IconBox>
-                    <Typography sx={{ fontWeight: 700, fontSize: '0.8rem', color: TOKEN.ink }}>Personal Information</Typography>
-                  </Box>
-                  <Tooltip title={isEditing ? 'Cancel editing' : 'Edit profile'} arrow placement="top">
-                    <IconButton
-                      size="small"
-                      onClick={() => isEditing ? handleCancelEdit() : setIsEditing(true)}
+          {/* Right side - Stats Row (Multiple Cards in a Row) */}
+          <Grid item xs={12} md={7} lg={8}>
+            <Card sx={{ animationDelay: "160ms" }}>
+              <CardHead>
+                <Box sx={{ display: "flex", alignItems: "center", gap: 1.25 }}>
+                  <SectionIcon>
+                    <PersonOutlineIcon />
+                  </SectionIcon>
+                  <Box>
+                    <Typography
                       sx={{
-                        color:   isEditing ? TOKEN.red   : TOKEN.navy,
-                        bgcolor: isEditing ? TOKEN.redBg : TOKEN.navyDim,
-                        width: 30, height: 30,
-                        transition: 'all 0.18s ease',
-                        '&:hover': {
-                          bgcolor: isEditing ? alpha(TOKEN.red, 0.16) : TOKEN.navyMid,
-                        },
+                        fontWeight: 700,
+                        fontSize: "0.8375rem",
+                        color: P.slate900,
                       }}
                     >
-                      {isEditing
-                        ? <CancelIcon sx={{ fontSize: '0.9rem' }} />
-                        : <EditIcon   sx={{ fontSize: '0.9rem' }} />}
-                    </IconButton>
-                  </Tooltip>
-                </SectionHeader>
-
-                <Box sx={{ p: { xs: 2, sm: 2.5 } }}>
-                  <Grid container spacing={1.8}>
-                    {/* First Name */}
-                    <Grid item xs={12} sm={6} sx={{width:"228px"}}>
-                      <Label>First Name</Label>
-                      <StyledField fullWidth size="small" name="firstName" value={formData.firstName} onChange={handleFormChange} disabled={!isEditing} />
-                    </Grid>
-
-                    {/* Last Name */}
-                    <Grid item xs={12} sm={6} sx={{width:"228px"}}>
-                      <Label>Last Name</Label>
-                      <StyledField fullWidth size="small" name="lastName" value={formData.lastName} onChange={handleFormChange} disabled={!isEditing} />
-                    </Grid>
-
-                    {/* Email (read-only) */}
-                    <Grid item xs={12} sm={6} sx={{width:"228px"}}>
-                      <Label>Email Address</Label>
-                      <StyledField
-                        fullWidth size="small" type="email"
-                        value={profile?.email || ''} disabled
-                        InputProps={{ startAdornment: <InputAdornment position="start"><EmailIcon sx={{ fontSize: '0.8rem', color: TOKEN.ghost }} /></InputAdornment> }}
-                      />
-                    </Grid>
-
-                    {/* Department */}
-                    <Grid item xs={12} sm={6}>
-                      <Label>Department</Label>
-                      <StyledField
-                        fullWidth size="small" name="department"
-                        value={formData.department} onChange={handleFormChange} disabled={!isEditing}
-                        InputProps={{ startAdornment: <InputAdornment position="start"><WorkIcon sx={{ fontSize: '0.8rem', color: TOKEN.ghost }} /></InputAdornment> }}
-                      />
-                    </Grid>
-
-                    {/* Phone */}
-                    <Grid item xs={12} sm={6}>
-                      <Label>Phone Number</Label>
-                      <StyledField
-                        fullWidth size="small" name="phone"
-                        value={formData.phone} onChange={handleFormChange} disabled={!isEditing}
-                        InputProps={{ startAdornment: <InputAdornment position="start"><PhoneInTalkIcon sx={{ fontSize: '0.8rem', color: TOKEN.ghost }} /></InputAdornment> }}
-                      />
-                    </Grid>
-
-                    {/* Location */}
-                    <Grid item xs={12} sm={6}>
-                      <Label>Location</Label>
-                      <StyledField
-                        fullWidth size="small" name="location"
-                        value={formData.location} onChange={handleFormChange} disabled={!isEditing}
-                        InputProps={{ startAdornment: <InputAdornment position="start"><HomeIcon sx={{ fontSize: '0.8rem', color: TOKEN.ghost }} /></InputAdornment> }}
-                      />
-                    </Grid>
-
-                    {/* Bio */}
-                    <Grid item xs={12} sx={{width:"230px"}}>
-                      <Label>Bio</Label>
-                      <StyledField
-                        fullWidth multiline rows={1} name="bio"
-                        value={formData.bio} onChange={handleFormChange}
-                        disabled={!isEditing}
-                        placeholder="Tell us about yourself…"
-                      />
-                    </Grid>
-                  </Grid>
-
-                  {/* Save / Cancel */}
-                  <Fade in={isEditing}>
-                    <Box sx={{
-                      display: isEditing ? 'flex' : 'none',
-                      justifyContent: 'flex-end',
-                      gap: 1.5, mt: 2.5,
-                      pt: 2,
-                      borderTop: `1px solid ${TOKEN.border}`,
-                      flexDirection: { xs: 'column', sm: 'row' },
-                    }}>
-                      <SecondaryBtn startIcon={<CancelIcon sx={{ fontSize: '0.85rem !important' }} />} onClick={handleCancelEdit}>
-                        Discard
-                      </SecondaryBtn>
-                      <PrimaryBtn startIcon={<SaveIcon sx={{ fontSize: '0.85rem !important' }} />} onClick={handleUpdateProfile} disabled={loading}>
-                        {loading ? <CircularProgress size={14} color="inherit" /> : 'Save Changes'}
-                      </PrimaryBtn>
-                    </Box>
-                  </Fade>
-                </Box>
-              </Card>
-
-              {/* Performance Overview Card */}
-              <Card>
-                <SectionHeader>
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                    <IconBox><AssignmentIcon /></IconBox>
-                    <Typography sx={{ fontWeight: 700, fontSize: '0.8rem', color: TOKEN.ink }}>Performance Overview</Typography>
-                  </Box>
-                  <StatBadge color={TOKEN.green}>
-                    <TrendingUpIcon sx={{ fontSize: '0.65rem' }} /> Active
-                  </StatBadge>
-                </SectionHeader>
-
-                <Box sx={{ p: { xs: 2, sm: 2.5 } }}>
-                  <Grid container spacing={2}>
-
-                    {/* Assigned Tasks */}
-                    <Grid item xs={12} sm={6}>
-                      <Box sx={{
-                        p: 2,
-                        borderRadius: 2,
-                        background: TOKEN.surface,
-                        border: `1px solid ${TOKEN.border}`,
-                        display: 'flex',
-                        width:"250px",
-                        alignItems: 'center',
-                        gap: 1.5,
-                      }}>
-                        <Box sx={{
-                          width: 40, height: 40,
-                          borderRadius: 3,
-                          background: TOKEN.navyDim,
-                          display: 'flex', alignItems: 'center', justifyContent: 'center',
-                          flexShrink: 0,
-                        }}>
-                          <TaskAltIcon sx={{ fontSize: '1.1rem', color: TOKEN.navy }} />
-                        </Box>
-                        <Box>
-                          <Typography sx={{ fontSize: '0.6rem', color: TOKEN.ghost, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.4px' }}>
-                            Assigned Tasks
-                          </Typography>
-                          <Typography sx={{ fontSize: '1.45rem', fontWeight: 800, color: TOKEN.ink, lineHeight: 1.1 }}>
-                            {assignedCount}
-                          </Typography>
-                        </Box>
-                      </Box>
-                    </Grid>
-
-                    {/* Completion Rate */}
-                    <Grid item xs={12} sm={6}>
-                      <Box sx={{
-                        p: 2,
-                        borderRadius: 2,
-                        background: TOKEN.surface,
-                        border: `1px solid ${TOKEN.border}`,
-                        display: 'flex',
-                        width:"250px",
-                        alignItems: 'center',
-                        gap: 1.5,
-                      }}>
-                        <Box sx={{
-                          width: 40, height: 40,
-                          borderRadius: 10,
-                          background: TOKEN.greenBg,
-                          display: 'flex', alignItems: 'center', justifyContent: 'center',
-                          flexShrink: 0,
-                        }}>
-                          <SpeedIcon sx={{ fontSize: '1.1rem', color: TOKEN.green }} />
-                        </Box>
-                        <Box sx={{ flex: 1 }}>
-                          <Typography sx={{ fontSize: '0.6rem', color: TOKEN.ghost, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.4px' }}>
-                            Completion Rate
-                          </Typography>
-                          <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 0.5 }}>
-                            <Typography sx={{ fontSize: '1.45rem', fontWeight: 800, color: TOKEN.ink, lineHeight: 1.1 }}>
-                              {completionRate}
-                            </Typography>
-                            <Typography sx={{ fontSize: '0.7rem', fontWeight: 600, color: TOKEN.muted }}>%</Typography>
-                          </Box>
-                        </Box>
-                      </Box>
-                    </Grid>
-
-                    {/* Progress bar */}
-                    <Grid item xs={12}>
-                      <Box sx={{ px: 0.5 }}>
-                        <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.8 }}>
-                          <Typography sx={{ fontSize: '0.65rem', color: TOKEN.muted, fontWeight: 600 }}>Task Progress</Typography>
-                          <Typography sx={{ fontSize: '0.65rem', color: TOKEN.navy, fontWeight: 700 }}>{completionRate}%</Typography>
-                        </Box>
-                        <LinearProgress
-                          variant="determinate"
-                          value={completionRate}
-                          sx={{
-                            height: 6, borderRadius: 99,
-                            bgcolor: TOKEN.navyDim,
-                            '& .MuiLinearProgress-bar': {
-                              borderRadius: 99,
-                              background: `linear-gradient(90deg, ${TOKEN.navy}, ${alpha(TOKEN.green, 0.85)})`,
-                            },
-                          }}
-                        />
-                      </Box>
-                    </Grid>
-                  </Grid>
-
-                  <Divider sx={{ my: 2, borderColor: TOKEN.border }} />
-
-                  <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                    <Typography sx={{ fontSize: '0.65rem', color: TOKEN.ghost }}>
-                      Last login: <Box component="span" sx={{ color: TOKEN.muted, fontWeight: 600 }}>{formatDate(profile?.lastLoginDate)}</Box>
+                      Personal Information
                     </Typography>
-                    <StatBadge color={TOKEN.navy}>
-                      <CheckCircleIcon sx={{ fontSize: '0.65rem' }} /> In Good Standing
-                    </StatBadge>
+                    <Typography sx={{ fontSize: "0.7rem", color: P.slate400 }}>
+                      {isEditing
+                        ? "You're editing your profile"
+                        : "View and update your details"}
+                    </Typography>
                   </Box>
                 </Box>
-              </Card>
+                <Tooltip
+                  title={isEditing ? "Discard changes" : "Edit profile"}
+                  arrow
+                >
+                  <IconButton
+                    size="small"
+                    onClick={() =>
+                      isEditing ? cancelEdit() : setIsEditing(true)
+                    }
+                    sx={{
+                      width: 34,
+                      height: 34,
+                      borderRadius: 9,
+                      color: isEditing ? P.red500 : P.teal700,
+                      bgcolor: isEditing ? P.red100 : P.teal50,
+                      border: `1px solid ${isEditing ? alpha(P.red500, 0.2) : P.teal100}`,
+                      transition: "all 0.2s",
+                      "&:hover": {
+                        bgcolor: isEditing ? alpha(P.red500, 0.12) : P.teal100,
+                      },
+                    }}
+                  >
+                    {isEditing ? (
+                      <CancelIcon sx={{ fontSize: "0.95rem" }} />
+                    ) : (
+                      <EditIcon sx={{ fontSize: "0.95rem" }} />
+                    )}
+                  </IconButton>
+                </Tooltip>
+              </CardHead>
 
-            </Stack>
+              <CardBody sx={{ width: "800px" }}>
+                <Grid container spacing={2.5}>
+                  <Grid item xs={12} sm={6} sx={{ width: "300px" }}>
+                    <Lbl>First Name</Lbl>
+                    <Field
+                      fullWidth
+                      size="small"
+                      name="firstName"
+                      placeholder="First name"
+                      value={formData.firstName}
+                      onChange={(e) =>
+                        setFormData({ ...formData, firstName: e.target.value })
+                      }
+                      disabled={!isEditing}
+                    />
+                  </Grid>
+                  <Grid item xs={12} sm={6} sx={{ width: "300px" }}>
+                    <Lbl>Last Name</Lbl>
+                    <Field
+                      fullWidth
+                      size="small"
+                      name="lastName"
+                      placeholder="Last name"
+                      value={formData.lastName}
+                      onChange={(e) =>
+                        setFormData({ ...formData, lastName: e.target.value })
+                      }
+                      disabled={!isEditing}
+                    />
+                  </Grid>
+
+                  <Grid item xs={12} sx={{ width: "300px" }}>
+                    <Lbl>Email Address</Lbl>
+                    <Field
+                      fullWidth
+                      size="small"
+                      type="email"
+                      value={profile?.email || ""}
+                      disabled
+                      InputProps={{
+                        startAdornment: (
+                          <InputAdornment position="start">
+                            <EmailIcon
+                              sx={{ fontSize: "0.85rem", color: P.slate400 }}
+                            />
+                          </InputAdornment>
+                        ),
+                        endAdornment: (
+                          <InputAdornment position="end">
+                            <Tag color={P.slate500} bg={P.slate100}>
+                              Verified
+                            </Tag>
+                          </InputAdornment>
+                        ),
+                      }}
+                    />
+                  </Grid>
+
+                  <Grid item xs={12} sm={6} sx={{ width: "300px" }}>
+                    <Lbl>Phone Number</Lbl>
+                    <Field
+                      fullWidth
+                      size="small"
+                      name="phone"
+                      placeholder="Enter phone number"
+                      value={formData.phone}
+                      onChange={(e) =>
+                        setFormData({ ...formData, phone: e.target.value })
+                      }
+                      disabled={!isEditing}
+                      InputProps={{
+                        startAdornment: (
+                          <InputAdornment position="start">
+                            <PhoneInTalkIcon
+                              sx={{ fontSize: "0.85rem", color: P.slate400 }}
+                            />
+                          </InputAdornment>
+                        ),
+                      }}
+                    />
+                  </Grid>
+                  <Grid item xs={12} sm={6} sx={{ width: "300px" }}>
+                    <Lbl>Department</Lbl>
+                    <Field
+                      fullWidth
+                      size="small"
+                      name="department"
+                      placeholder="Your department"
+                      value={formData.department}
+                      onChange={(e) =>
+                        setFormData({ ...formData, department: e.target.value })
+                      }
+                      disabled={!isEditing}
+                      InputProps={{
+                        startAdornment: (
+                          <InputAdornment position="start">
+                            <WorkIcon
+                              sx={{ fontSize: "0.85rem", color: P.slate400 }}
+                            />
+                          </InputAdornment>
+                        ),
+                      }}
+                    />
+                  </Grid>
+
+                  <Grid item xs={12} sx={{ width: "300px" }}>
+                    <Lbl>Location</Lbl>
+                    <Field
+                      fullWidth
+                      size="small"
+                      name="location"
+                      placeholder="City or region"
+                      value={formData.location}
+                      onChange={(e) =>
+                        setFormData({ ...formData, location: e.target.value })
+                      }
+                      disabled={!isEditing}
+                      InputProps={{
+                        startAdornment: (
+                          <InputAdornment position="start">
+                            <HomeIcon
+                              sx={{ fontSize: "0.85rem", color: P.slate400 }}
+                            />
+                          </InputAdornment>
+                        ),
+                      }}
+                    />
+                  </Grid>
+
+                  <Grid item xs={12} sx={{ width: "600px" }}>
+                    <Lbl>About Me</Lbl>
+                    {isEditing ? (
+                      <Field
+                        fullWidth
+                        multiline
+                        name="bio"
+                        placeholder="A short description about yourself…"
+                        value={formData.bio}
+                        onChange={(e) =>
+                          setFormData({ ...formData, bio: e.target.value })
+                        }
+                      />
+                    ) : (
+                      <Box
+                        sx={{
+                          minHeight: 60,
+                          px: 1,
+                          py: 1.25,
+                          borderRadius: 2,
+                          border: `1px solid ${P.slate200}`,
+                          background: P.slate50,
+                        }}
+                      >
+                        {formData.bio ? (
+                          <Typography
+                            sx={{
+                              fontSize: "0.8125rem",
+                              color: P.slate600,
+                              lineHeight: 1.65,
+                            }}
+                          >
+                            {formData.bio}
+                          </Typography>
+                        ) : (
+                          <Typography
+                            sx={{
+                              fontSize: "0.8125rem",
+                              color: P.slate400,
+                              fontStyle: "italic",
+                            }}
+                          >
+                            No bio added yet. Click edit to add one.
+                          </Typography>
+                        )}
+                      </Box>
+                    )}
+                  </Grid>
+                </Grid>
+
+                {/* Save / cancel row */}
+                <Fade in={isEditing} unmountOnExit>
+                  <Box
+                    sx={{
+                      display: "flex",
+                      justifyContent: "flex-end",
+                      alignItems: "center",
+                      gap: 1.5,
+                      mt: 3,
+                      pt: 2.5,
+                      borderTop: `1px solid ${P.slate200}`,
+                    }}
+                  >
+                    <GhostBtn onClick={cancelEdit}>Discard</GhostBtn>
+                    <TealBtn
+                      startIcon={<SaveIcon sx={{ fontSize: "0.85rem" }} />}
+                      onClick={handleUpdateProfile}
+                      disabled={saving}
+                    >
+                      {saving ? "Saving…" : "Save Changes"}
+                    </TealBtn>
+                  </Box>
+                </Fade>
+              </CardBody>
+            </Card>
+          </Grid>
+        </Grid>
+
+        {/* Row 2: Personal Information and Security Cards - Side by Side */}
+        <Grid container spacing={3} sx={{ mt: 1 }}>
+          {/* Security / Change Password Card */}
+          <Grid item xs={12} md={5}>
+            <Card
+              sx={{ animationDelay: "200ms", height: "100%", width: "300px" }}
+            >
+              <CardHead>
+                <Box sx={{ display: "flex", alignItems: "center", gap: 1.25 }}>
+                  <SectionIcon>
+                    <KeyIcon />
+                  </SectionIcon>
+                  <Typography
+                    sx={{
+                      fontWeight: 700,
+                      fontSize: "0.8375rem",
+                      color: P.slate900,
+                    }}
+                  >
+                    Security
+                  </Typography>
+                </Box>
+              </CardHead>
+              <CardBody>
+                <Typography
+                  sx={{ fontSize: "0.75rem", color: P.slate400, mb: 2.5 }}
+                >
+                  Update your password to keep your account secure.
+                </Typography>
+                <Stack spacing={1.75}>
+                  {[
+                    {
+                      name: "currentPassword",
+                      label: "Current password",
+                      key: "current",
+                      placeholder: "Enter current password",
+                    },
+                    {
+                      name: "newPassword",
+                      label: "New password",
+                      key: "new",
+                      placeholder: "Min. 6 characters",
+                    },
+                    {
+                      name: "confirmPassword",
+                      label: "Confirm password",
+                      key: "confirm",
+                      placeholder: "Re-enter new password",
+                    },
+                  ].map((f) => (
+                    <Box key={f.name}>
+                      <Lbl>{f.label}</Lbl>
+                      <Field
+                        fullWidth
+                        size="small"
+                        name={f.name}
+                        type={showPass[f.key] ? "text" : "password"}
+                        placeholder={f.placeholder}
+                        value={passData[f.name]}
+                        onChange={handlePassChange}
+                        error={!!passErrors[f.name]}
+                        helperText={passErrors[f.name]}
+                        InputProps={{
+                          endAdornment: (
+                            <InputAdornment position="end">
+                              <IconButton
+                                onClick={() =>
+                                  setShowPass((p) => ({
+                                    ...p,
+                                    [f.key]: !p[f.key],
+                                  }))
+                                }
+                                edge="end"
+                                size="small"
+                              >
+                                {showPass[f.key] ? (
+                                  <VisibilityOffIcon
+                                    sx={{
+                                      fontSize: "0.9rem",
+                                      color: P.slate400,
+                                    }}
+                                  />
+                                ) : (
+                                  <VisibilityIcon
+                                    sx={{
+                                      fontSize: "0.9rem",
+                                      color: P.slate400,
+                                    }}
+                                  />
+                                )}
+                              </IconButton>
+                            </InputAdornment>
+                          ),
+                        }}
+                      />
+                    </Box>
+                  ))}
+                  <TealBtn
+                    fullWidth
+                    startIcon={<LockIcon sx={{ fontSize: "0.9rem" }} />}
+                    onClick={handleChangePassword}
+                    disabled={
+                      changingPass ||
+                      !passData.currentPassword ||
+                      !passData.newPassword ||
+                      !passData.confirmPassword
+                    }
+                    sx={{ mt: 0.5 }}
+                  >
+                    {changingPass ? "Updating…" : "Update Password"}
+                  </TealBtn>
+                </Stack>
+              </CardBody>
+            </Card>
           </Grid>
         </Grid>
 
         {/* Footer */}
-        <Box sx={{ borderTop: `1px solid ${TOKEN.border}`, mt: 4, pt: 2.5, textAlign: 'center' }}>
-          <Typography sx={{ fontSize: '0.6rem', color: TOKEN.ghost }}>
-            © 2026 Profile Management System · All rights reserved
+        <Box
+          sx={{
+            textAlign: "center",
+            mt: 6,
+            pt: 3,
+            borderTop: `1px solid ${P.slate200}`,
+          }}
+        >
+          <Typography sx={{ fontSize: "0.65rem", color: P.slate400 }}>
+            © 2026 Asset Management System · Profile v2.0{" "}
           </Typography>
         </Box>
       </Container>
 
       {/* Toast */}
       <Snackbar
-        open={snackbar.open}
+        open={snack.open}
         autoHideDuration={5000}
-        onClose={() => setSnackbar(s => ({ ...s, open: false }))}
-        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+        onClose={() => setSnack((s) => ({ ...s, open: false }))}
+        anchorOrigin={{ vertical: "bottom", horizontal: "center" }}
       >
         <Alert
-          onClose={() => setSnackbar(s => ({ ...s, open: false }))}
-          severity={snackbar.severity}
-          icon={snackbar.severity === 'success' ? <CheckCircleIcon /> : undefined}
+          onClose={() => setSnack((s) => ({ ...s, open: false }))}
+          severity={snack.severity}
           sx={{
-            borderRadius: TOKEN.radiusSm,
-            fontSize: '0.75rem',
-            boxShadow: '0 8px 24px rgba(0,0,0,0.12)',
+            borderRadius: 10,
+            fontSize: "0.75rem",
+            boxShadow: "0 8px 24px rgba(0,0,0,0.1)",
           }}
         >
-          {snackbar.message}
+          {snack.message}
         </Alert>
       </Snackbar>
-    </PageContainer>
+    </Page>
   );
 };
 
-// ─── Root export ───────────────────────────────────────────────────────────────
-const Profile = () => (
-  <TeamProvider>
-    <ProfileContent />
-  </TeamProvider>
-);
+// ─── Root export ──────────────────────────────────────────────────────────────
+const TeamProfile = () => {
+  const { isAuthenticated, user } = useAuth();
+  if (!isAuthenticated)
+    return (
+      <Box
+        sx={{
+          display: "flex",
+          justifyContent: "center",
+          alignItems: "center",
+          minHeight: "100vh",
+        }}
+      >
+        <Typography>Please login to view profile</Typography>
+      </Box>
+    );
+  if (user?.role !== "team")
+    return (
+      <Box
+        sx={{
+          display: "flex",
+          justifyContent: "center",
+          alignItems: "center",
+          minHeight: "100vh",
+        }}
+      >
+        <Typography>Access denied. Team members only.</Typography>
+      </Box>
+    );
+  return <ProfileContent />;
+};
 
-export default Profile;
+export default TeamProfile;

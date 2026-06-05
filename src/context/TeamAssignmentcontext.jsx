@@ -18,7 +18,7 @@ export const useAssignment = () => {
   return ctx;
 };
 
-const API_BASE_URL = "https://assset-management-backend-4.onrender.com/api/v1";
+const API_BASE_URL = "http://localhost:9001/api/v1";
 
 const getApi = (token) =>
   axios.create({

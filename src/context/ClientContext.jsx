@@ -1,4 +1,4 @@
-// context/ClientContext.jsx - Complete Fixed Version
+// context/ClientContext.jsx - Fixed Version with Better Error Handling
 
 import React, {
   createContext,
@@ -10,7 +10,7 @@ import React, {
 } from "react";
 import axios from "axios";
 
-const API_BASE_URL = "https://assset-management-backend-4.onrender.com/api/v1";
+const API_BASE_URL = "http://localhost:9001/api/v1";
 
 // Initial state
 const initialState = {
@@ -79,6 +79,7 @@ const clientReducer = (state, action) => {
         error: action.payload,
         loading: false,
         initialLoading: false,
+        actionLoading: false,
       };
     case ACTION_TYPES.SET_CLIENTS:
       return {
@@ -115,13 +116,18 @@ const clientReducer = (state, action) => {
   }
 };
 
-// Helper functions
+// Helper functions with better token handling
 const getAuthHeaders = () => {
-  const token =
-    localStorage.getItem("accessToken") || localStorage.getItem("token");
-  if (!token || token === "undefined" || token === "null") {
+  const token = localStorage.getItem("accessToken") || localStorage.getItem("token");
+  
+  // Debug: Check if token exists
+  console.log("Getting auth headers, token exists:", !!token);
+  
+  if (!token || token === "undefined" || token === "null" || token === "") {
+    console.warn("No valid token found in localStorage");
     return null;
   }
+  
   return {
     "Content-Type": "application/json",
     Authorization: `Bearer ${token}`,
@@ -129,9 +135,27 @@ const getAuthHeaders = () => {
 };
 
 const getToken = () => {
-  const token =
-    localStorage.getItem("accessToken") || localStorage.getItem("token");
-  return token && token !== "undefined" && token !== "null" ? token : null;
+  const token = localStorage.getItem("accessToken") || localStorage.getItem("token");
+  
+  if (!token || token === "undefined" || token === "null" || token === "") {
+    return null;
+  }
+  
+  return token;
+};
+
+// Check if user has admin role
+const isAdminUser = () => {
+  try {
+    const userStr = localStorage.getItem("user");
+    if (userStr) {
+      const user = JSON.parse(userStr);
+      return user?.role === "admin" || user?.role === "super_admin";
+    }
+  } catch (e) {
+    console.error("Error parsing user from localStorage:", e);
+  }
+  return false;
 };
 
 // Create Context
@@ -151,7 +175,10 @@ export const ClientProvider = ({ children }) => {
   const getAllClients = useCallback(
     async (params = {}) => {
       const token = getToken();
+      
+      // Check authentication
       if (!token) {
+        console.error("No authentication token found");
         dispatch({
           type: ACTION_TYPES.SET_ERROR,
           payload: "Authentication required. Please login again.",
@@ -160,11 +187,25 @@ export const ClientProvider = ({ children }) => {
         return null;
       }
 
-      // Prevent multiple simultaneous requests
-      if (isFetchingRef.current) {
+      // Check admin role
+      const isAdmin = isAdminUser();
+      if (!isAdmin) {
+        console.error("User does not have admin permissions");
+        dispatch({
+          type: ACTION_TYPES.SET_ERROR,
+          payload: "Access denied. Admin permissions required to view clients.",
+        });
+        dispatch({ type: ACTION_TYPES.SET_INITIAL_LOADING, payload: false });
         return null;
       }
 
+      // Prevent multiple simultaneous requests
+      if (isFetchingRef.current) {
+        console.log("Already fetching clients, skipping...");
+        return null;
+      }
+
+      // Abort previous request
       if (activeControllerRef.current) {
         activeControllerRef.current.abort();
       }
@@ -176,14 +217,11 @@ export const ClientProvider = ({ children }) => {
       try {
         const page = params.page || state.pagination.page;
         const limit = params.limit || state.pagination.limit;
-        const search =
-          params.search !== undefined ? params.search : state.filters.search;
-        const status =
-          params.status !== undefined ? params.status : state.filters.status;
-        const membershipPlan =
-          params.membershipPlan !== undefined
-            ? params.membershipPlan
-            : state.filters.membershipPlan;
+        const search = params.search !== undefined ? params.search : state.filters.search;
+        const status = params.status !== undefined ? params.status : state.filters.status;
+        const membershipPlan = params.membershipPlan !== undefined
+          ? params.membershipPlan
+          : state.filters.membershipPlan;
         const sortBy = params.sortBy || state.filters.sortBy;
         const sortOrder = params.sortOrder || state.filters.sortOrder;
 
@@ -203,10 +241,15 @@ export const ClientProvider = ({ children }) => {
         const url = `${API_BASE_URL}/clients?${queryParams.toString()}`;
         const headers = getAuthHeaders();
 
+        console.log("Fetching clients from:", url);
+        console.log("Headers:", { ...headers, Authorization: "Bearer [REDACTED]" });
+
         const response = await axios.get(url, {
           headers,
           signal: activeControllerRef.current.signal,
         });
+
+        console.log("Clients response:", response.data);
 
         const clientsData = response.data.clients || [];
         const paginationData = response.data.pagination || {};
@@ -242,13 +285,31 @@ export const ClientProvider = ({ children }) => {
         return response.data;
       } catch (error) {
         if (axios.isCancel(error) || error.name === "CanceledError") {
+          console.log("Request cancelled");
           return null;
         }
+        
         console.error("Get all clients error:", error);
-        const errorMessage =
-          error.response?.data?.message ||
-          error.message ||
-          "Failed to fetch clients";
+        console.error("Error status:", error.response?.status);
+        console.error("Error message:", error.response?.data?.message);
+        
+        let errorMessage = "Failed to fetch clients";
+        
+        if (error.response?.status === 401) {
+          errorMessage = "Session expired. Please login again.";
+          // Clear invalid token
+          localStorage.removeItem("accessToken");
+          localStorage.removeItem("token");
+        } else if (error.response?.status === 403) {
+          errorMessage = "Access denied. You don't have permission to view clients.";
+        } else if (error.response?.status === 404) {
+          errorMessage = "Clients endpoint not found. Please check API configuration.";
+        } else if (error.response?.data?.message) {
+          errorMessage = error.response.data.message;
+        } else if (error.message) {
+          errorMessage = error.message;
+        }
+        
         dispatch({ type: ACTION_TYPES.SET_ERROR, payload: errorMessage });
         throw error;
       } finally {
@@ -273,6 +334,7 @@ export const ClientProvider = ({ children }) => {
     async (params = {}) => {
       const token = getToken();
       if (!token) {
+        console.error("No token available for fetchClients");
         dispatch({
           type: ACTION_TYPES.SET_ERROR,
           payload: "Authentication required. Please login again.",
@@ -280,6 +342,18 @@ export const ClientProvider = ({ children }) => {
         dispatch({ type: ACTION_TYPES.SET_INITIAL_LOADING, payload: false });
         return null;
       }
+      
+      const isAdmin = isAdminUser();
+      if (!isAdmin) {
+        console.error("Non-admin user attempted to fetch clients");
+        dispatch({
+          type: ACTION_TYPES.SET_ERROR,
+          payload: "Access denied. Admin permissions required.",
+        });
+        dispatch({ type: ACTION_TYPES.SET_INITIAL_LOADING, payload: false });
+        return null;
+      }
+      
       return await getAllClients(params);
     },
     [getAllClients],
@@ -327,6 +401,11 @@ export const ClientProvider = ({ children }) => {
         throw new Error("Authentication required. Please login again.");
       }
 
+      const isAdmin = isAdminUser();
+      if (!isAdmin) {
+        throw new Error("Access denied. Admin permissions required to create clients.");
+      }
+
       dispatch({ type: ACTION_TYPES.SET_ACTION_LOADING, payload: true });
 
       try {
@@ -360,6 +439,11 @@ export const ClientProvider = ({ children }) => {
       const token = getToken();
       if (!token) {
         throw new Error("Authentication required. Please login again.");
+      }
+
+      const isAdmin = isAdminUser();
+      if (!isAdmin) {
+        throw new Error("Access denied. Admin permissions required to update clients.");
       }
 
       dispatch({ type: ACTION_TYPES.SET_ACTION_LOADING, payload: true });
@@ -408,6 +492,11 @@ export const ClientProvider = ({ children }) => {
         throw new Error("Authentication required. Please login again.");
       }
 
+      const isAdmin = isAdminUser();
+      if (!isAdmin) {
+        throw new Error("Access denied. Admin permissions required.");
+      }
+
       dispatch({ type: ACTION_TYPES.SET_ACTION_LOADING, payload: true });
 
       try {
@@ -449,6 +538,11 @@ export const ClientProvider = ({ children }) => {
       const token = getToken();
       if (!token) {
         throw new Error("Authentication required. Please login again.");
+      }
+
+      const isAdmin = isAdminUser();
+      if (!isAdmin) {
+        throw new Error("Access denied. Admin permissions required.");
       }
 
       dispatch({ type: ACTION_TYPES.SET_ACTION_LOADING, payload: true });
@@ -493,6 +587,11 @@ export const ClientProvider = ({ children }) => {
         throw new Error("Authentication required. Please login again.");
       }
 
+      const isAdmin = isAdminUser();
+      if (!isAdmin) {
+        throw new Error("Access denied. Admin permissions required.");
+      }
+
       dispatch({ type: ACTION_TYPES.SET_ACTION_LOADING, payload: true });
 
       try {
@@ -533,6 +632,11 @@ export const ClientProvider = ({ children }) => {
     const token = getToken();
     if (!token) {
       throw new Error("Authentication required. Please login again.");
+    }
+
+    const isAdmin = isAdminUser();
+    if (!isAdmin) {
+      throw new Error("Access denied. Admin permissions required.");
     }
 
     try {
@@ -582,14 +686,27 @@ export const ClientProvider = ({ children }) => {
     });
   }, []);
 
-  // Initial load - only runs once
+  // Initial load - only runs once and checks permissions
   useEffect(() => {
     if (!initialLoadDone.current) {
       initialLoadDone.current = true;
       const token = getToken();
-      if (token) {
+      const isAdmin = isAdminUser();
+      
+      console.log("Initial load - Token exists:", !!token);
+      console.log("Initial load - Is admin:", isAdmin);
+      
+      if (token && isAdmin) {
         fetchClients({ page: 1 });
-      } else {
+      } else if (!token) {
+        console.warn("No token found, skipping initial client load");
+        dispatch({ type: ACTION_TYPES.SET_INITIAL_LOADING, payload: false });
+      } else if (!isAdmin) {
+        console.warn("User is not admin, skipping client load");
+        dispatch({ 
+          type: ACTION_TYPES.SET_ERROR, 
+          payload: "Access denied. Admin permissions required to view clients." 
+        });
         dispatch({ type: ACTION_TYPES.SET_INITIAL_LOADING, payload: false });
       }
     }

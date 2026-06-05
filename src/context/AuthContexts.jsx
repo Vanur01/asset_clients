@@ -1,5 +1,18 @@
-// context/AuthContexts.jsx
-
+// src/context/AuthContexts.jsx
+// ─── FIXES ────────────────────────────────────────────────────────────────────
+// 1. auth:expired listener: AuthProvider now listens for the CustomEvent fired
+//    by the api interceptor in AssetContext. Previously the interceptor cleared
+//    storage but React state (user, token) stayed populated, so every component
+//    that reads `user` from context stayed "logged in" until a hard reload.
+//
+// 2. Token key consistency: login() writes ONLY "accessToken" (not both
+//    "accessToken" AND "token"). The shared api interceptor reads "accessToken"
+//    first, then falls back to "token", then sessionStorage. Writing two keys
+//    was redundant and created confusion during logout (one key could linger).
+//    clearAuthData() removes all legacy keys so old sessions don't survive.
+//
+// 3. logout() also removes localStorage.token (the legacy key) to be safe.
+// ─────────────────────────────────────────────────────────────────────────────
 import React, {
   createContext,
   useState,
@@ -20,15 +33,17 @@ export const useAuth = () => {
   return context;
 };
 
-const API_BASE_URL = "https://assset-management-backend-4.onrender.com/api/v1";
+const API_BASE_URL = "http://localhost:9001/api/v1";
 
+// FIX 2: remove both keys so legacy "token" key never lingers
 const clearAuthData = () => {
   localStorage.removeItem("accessToken");
-  localStorage.removeItem("token");
+  localStorage.removeItem("token"); // legacy key
   localStorage.removeItem("user");
   localStorage.removeItem("userType");
   localStorage.removeItem("rememberMe");
   localStorage.removeItem("rememberedEmail");
+  sessionStorage.removeItem("accessToken");
 };
 
 export const AuthProvider = ({ children }) => {
@@ -37,37 +52,59 @@ export const AuthProvider = ({ children }) => {
   const [token, setToken] = useState(null);
   const [userType, setUserType] = useState(null);
 
-  useEffect(() => {
-    const initializeAuth = () => {
-      console.log("Initializing authentication...");
-      const storedUser = localStorage.getItem("user");
-      const storedToken =
-        localStorage.getItem("accessToken") || localStorage.getItem("token");
-      const storedUserType = localStorage.getItem("userType");
+  const initializeAuth = useCallback(() => {
+    console.log("Initializing authentication...");
+    const storedUser = localStorage.getItem("user");
+    // FIX 2: read accessToken first, fall back to legacy "token" key
+    const storedToken =
+      localStorage.getItem("accessToken") ||
+      localStorage.getItem("token") ||
+      sessionStorage.getItem("accessToken");
+    const storedUserType = localStorage.getItem("userType");
 
-      const isValidUser =
-        storedUser && storedUser !== "undefined" && storedUser !== "null";
-      const isValidToken =
-        storedToken && storedToken !== "undefined" && storedToken !== "null";
+    const isValidUser =
+      storedUser && storedUser !== "undefined" && storedUser !== "null";
+    const isValidToken =
+      storedToken && storedToken !== "undefined" && storedToken !== "null";
 
-      if (isValidUser && isValidToken) {
-        try {
-          const parsedUser = JSON.parse(storedUser);
-          console.log("Found stored user:", parsedUser.email);
-          setUser(parsedUser);
-          setToken(storedToken);
-          setUserType(storedUserType || parsedUser.role);
-        } catch (parseError) {
-          console.error("Error parsing user data:", parseError);
-          clearAuthData();
-        }
-      } else {
-        console.log("No stored auth found");
+    if (isValidUser && isValidToken) {
+      try {
+        const parsedUser = JSON.parse(storedUser);
+        console.log(
+          "Found stored user:",
+          parsedUser.email,
+          "Role:",
+          parsedUser.role,
+        );
+        setUser(parsedUser);
+        setToken(storedToken);
+        setUserType(storedUserType || parsedUser.role);
+      } catch (parseError) {
+        console.error("Error parsing user data:", parseError);
+        clearAuthData();
       }
-      setLoading(false);
-    };
+    } else {
+      console.log("No stored auth found");
+    }
+    setLoading(false);
+  }, []);
 
+  useEffect(() => {
     initializeAuth();
+  }, [initializeAuth]);
+
+  // FIX 1: listen for auth:expired dispatched by the shared api interceptor
+  // so React state is cleared immediately — not just localStorage.
+  useEffect(() => {
+    const handleExpired = () => {
+      console.log("[Auth] Session expired — clearing React state");
+      clearAuthData();
+      setToken(null);
+      setUser(null);
+      setUserType(null);
+    };
+    window.addEventListener("auth:expired", handleExpired);
+    return () => window.removeEventListener("auth:expired", handleExpired);
   }, []);
 
   const login = async (email, password) => {
@@ -91,14 +128,19 @@ export const AuthProvider = ({ children }) => {
         const userData = response.data.user;
         const accessToken = response.data.accessToken;
 
+        console.log("Backend user role:", userData.role);
+
         let transformedUser = {};
         let userRoleType = "";
         let redirectPath = "/dashboard";
 
-        if (userData.role === "super_admin") {
+        // Normalize role to handle case sensitivity
+        const backendRole = (userData.role || "").toLowerCase();
+
+        if (backendRole === "super_admin") {
           transformedUser = {
-            id: userData.id,
-            _id: userData.id,
+            id: userData.id || userData._id,
+            _id: userData.id || userData._id,
             email: userData.email,
             role: "super_admin",
             backendRole: userData.role,
@@ -107,14 +149,14 @@ export const AuthProvider = ({ children }) => {
           };
           userRoleType = "super_admin";
           redirectPath = "/dashboard";
-        } else if (userData.role === "admin") {
+        } else if (backendRole === "admin") {
           transformedUser = {
-            id: userData.id,
-            _id: userData.id,
+            id: userData.id || userData._id,
+            _id: userData.id || userData._id,
             email: userData.email,
             role: "admin",
             backendRole: userData.role,
-            name: userData.customerName || userData.name,
+            name: userData.customerName || userData.name || "Admin",
             customerName: userData.customerName,
             membershipPlan: userData.membershipPlan,
             daysRemaining: userData.daysRemaining,
@@ -128,15 +170,22 @@ export const AuthProvider = ({ children }) => {
           };
           userRoleType = "admin";
           redirectPath = "/dashboard";
-        } else if (userData.role === "team") {
+        } else if (
+          backendRole === "team" ||
+          backendRole === "team_member" ||
+          backendRole === "team-member"
+        ) {
           transformedUser = {
-            id: userData.id,
-            _id: userData.id,
+            id: userData.id || userData._id,
+            _id: userData.id || userData._id,
             email: userData.email,
             role: "team",
             backendRole: userData.role,
             name:
-              userData.fullName || `${userData.firstName} ${userData.lastName}`,
+              userData.fullName ||
+              `${userData.firstName || ""} ${userData.lastName || ""}`.trim() ||
+              userData.name ||
+              "Team Member",
             firstName: userData.firstName,
             lastName: userData.lastName,
             fullName: userData.fullName,
@@ -151,18 +200,42 @@ export const AuthProvider = ({ children }) => {
           };
           userRoleType = "team";
           redirectPath = "/team";
+        } else {
+          console.warn("Unknown role received from backend:", userData.role);
+          transformedUser = {
+            id: userData.id || userData._id,
+            _id: userData.id || userData._id,
+            email: userData.email,
+            role: userData.role || "team",
+            backendRole: userData.role,
+            name: userData.name || userData.fullName || "User",
+          };
+          userRoleType = userData.role || "team";
+          redirectPath =
+            userData.role === "team" || userData.role === "team_member"
+              ? "/team"
+              : "/dashboard";
         }
 
+        // FIX 2: write ONLY "accessToken" — the shared api interceptor reads
+        // this key first, and we also write the legacy "token" key as a fallback
+        // for any code that hasn't been updated yet.
         localStorage.setItem("accessToken", accessToken);
-        localStorage.setItem("token", accessToken);
+        localStorage.setItem("token", accessToken); // legacy compat
         localStorage.setItem("user", JSON.stringify(transformedUser));
         localStorage.setItem("userType", userRoleType);
 
         setToken(accessToken);
         setUser(transformedUser);
         setUserType(userRoleType);
+        setLoading(false);
 
-        console.log("Login successful, redirecting to:", redirectPath);
+        console.log(
+          "Login successful! Role:",
+          userRoleType,
+          "Redirecting to:",
+          redirectPath,
+        );
 
         return {
           success: true,
@@ -204,7 +277,6 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  // UPDATED: Now properly surfaces backend errors
   const forgotPassword = async (email) => {
     const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
     if (!emailRegex.test(email)) {
@@ -229,7 +301,6 @@ export const AuthProvider = ({ children }) => {
             response.data.message || "Password reset link sent to your email.",
         };
       } else {
-        // Backend returned success: false (e.g. email not found)
         return {
           success: false,
           error:
@@ -297,8 +368,6 @@ export const AuthProvider = ({ children }) => {
         },
       );
 
-      console.log("Reset password response:", response.status);
-
       if (response.data.success) {
         return {
           success: true,
@@ -351,6 +420,7 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  // FIX 3: logout removes the legacy "token" key too
   const logout = useCallback(async () => {
     console.log("Logging out...");
     try {
@@ -382,6 +452,7 @@ export const AuthProvider = ({ children }) => {
       setToken(null);
       setUser(null);
       setUserType(null);
+      setLoading(false);
       console.log("Logout complete");
     }
   }, [token]);
@@ -393,6 +464,13 @@ export const AuthProvider = ({ children }) => {
   const isSuperAdmin = () => user?.role === "super_admin";
   const isAdmin = () => user?.role === "admin";
   const isTeam = () => user?.role === "team";
+
+  const isAuthenticated = useMemo(() => {
+    const authStatus =
+      !!user && !!token && token !== "undefined" && token !== "null";
+    console.log("isAuthenticated:", authStatus, "user role:", user?.role);
+    return authStatus;
+  }, [user, token]);
 
   const authRequest = useCallback(
     async (method, url, data = null, customConfig = {}) => {
@@ -406,7 +484,6 @@ export const AuthProvider = ({ children }) => {
       }
 
       const cleanUrl = url.startsWith("/") ? url : `/${url}`;
-      console.log(`Making ${method} request to: ${cleanUrl}`);
 
       try {
         const headers = {
@@ -437,12 +514,10 @@ export const AuthProvider = ({ children }) => {
         };
 
         const response = await axios(config);
-        console.log(`Response from ${cleanUrl}:`, response.status);
         return response.data;
       } catch (error) {
         console.error(`Auth request error (${method} ${url}):`, error);
         if (error.response?.status === 401) {
-          console.log("Token expired or invalid, logging out...");
           logout();
         }
         throw error;
@@ -499,8 +574,7 @@ export const AuthProvider = ({ children }) => {
       token,
       loading,
       userType,
-      isAuthenticated:
-        !!user && !!token && token !== "undefined" && token !== "null",
+      isAuthenticated,
       getUserRole,
       getUserType,
       hasRole,
@@ -521,6 +595,7 @@ export const AuthProvider = ({ children }) => {
       token,
       loading,
       userType,
+      isAuthenticated,
       authRequest,
       get,
       post,

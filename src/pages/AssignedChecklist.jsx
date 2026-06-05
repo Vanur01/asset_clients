@@ -1442,7 +1442,7 @@ export default function AssignedChecklist() {
       let adminsData = [];
       try {
         const response = await axios.get(
-          `https://assset-management-backend-4.onrender.com/api/v1/user/clients?limit=100`,
+          `http://localhost:9001/api/v1/user/clients?limit=100`,
           {
             headers: {
               Authorization: `Bearer ${token}`,

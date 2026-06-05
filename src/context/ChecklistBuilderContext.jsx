@@ -75,7 +75,7 @@ export const ChecklistBuilderProvider = ({ children }) => {
 
     const config = {
       method,
-      url: `https://assset-management-backend-4.onrender.com/api/v1${url}`,
+      url: `http://localhost:9001/api/v1${url}`,
       headers: {
         Authorization: `Bearer ${accessToken}`,
         "Content-Type":

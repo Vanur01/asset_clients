@@ -1,4 +1,22 @@
-import React, { createContext, useContext, useState, useCallback } from "react";
+// src/context/AssetContext.jsx
+// ─── FIXES ────────────────────────────────────────────────────────────────────
+// 1. Token fallback: interceptor now also checks localStorage.getItem("token")
+//    so the fallback key written by AuthContext is never missed.
+// 2. auth:expired listener: the context now listens for the custom event fired
+//    by the response interceptor and clears React state immediately — previously
+//    the token was removed from storage but user/token state stayed stale until
+//    a hard reload, causing every subsequent API call to silently fail.
+// 3. Exported `api` instance is the single source of truth — all other contexts
+//    must import THIS instance rather than creating their own.
+// ─────────────────────────────────────────────────────────────────────────────
+import React, {
+  createContext,
+  useContext,
+  useState,
+  useCallback,
+  useRef,
+  useEffect,
+} from "react";
 import axios from "axios";
 
 const AssetContext = createContext();
@@ -9,367 +27,288 @@ export const useAsset = () => {
   return context;
 };
 
-const API_BASE_URL = "https://assset-management-backend-4.onrender.com/api/v1";
+const API_BASE_URL =
+  import.meta.env?.VITE_API_URL || "http://localhost:9001/api/v1";
+
+// ─── Shared axios instance (exported for all contexts to import) ──────────────
+export const api = axios.create({ baseURL: API_BASE_URL });
+
+// ── Request interceptor ───────────────────────────────────────────────────────
+// FIX 1: check all three storage keys AuthContext may write to
+api.interceptors.request.use(
+  (config) => {
+    const token =
+      localStorage.getItem("accessToken") ||
+      localStorage.getItem("token") ||          // ← was missing
+      sessionStorage.getItem("accessToken");
+
+    console.log(
+      `[API] ${config.method?.toUpperCase()} ${config.url} - Token: ${!!token}`,
+    );
+    if (token) config.headers.Authorization = `Bearer ${token}`;
+    config.headers["Content-Type"] = "application/json";
+    return config;
+  },
+  (error) => Promise.reject(error),
+);
+
+// ── Response interceptor ──────────────────────────────────────────────────────
+api.interceptors.response.use(
+  (response) => {
+    console.log(
+      `[API] Response ${response.status} from ${response.config.url}`,
+    );
+    return response;
+  },
+  (error) => {
+    const status = error?.response?.status;
+    console.error(
+      `[API] Error ${status} from ${error?.config?.url}`,
+      error?.response?.data,
+    );
+
+    if (status === 401 || status === 403) {
+      console.log("[API] Token expired or invalid, clearing auth data");
+      localStorage.removeItem("accessToken");
+      localStorage.removeItem("token");
+      sessionStorage.removeItem("accessToken");
+      // FIX 2: dispatch so AssetProvider (and AuthProvider) can clear React state
+      window.dispatchEvent(new CustomEvent("auth:expired"));
+    }
+    return Promise.reject(error);
+  },
+);
+
+// De-duplicate by _id or id
+const deduplicateAssets = (list = []) => {
+  const seen = new Set();
+  return list.filter((asset) => {
+    const key = asset._id || asset.id;
+    if (!key || seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+};
 
 export const AssetProvider = ({ children }) => {
   const [assets, setAssets] = useState([]);
+  const [assetStats, setAssetStats] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [pagination, setPagination] = useState({
     page: 1,
-    limit: 10,
+    limit: 12,
     total: 0,
-    totalPages: 0,
+    pages: 0,
   });
 
-  const getToken = () => {
-    return (
-      localStorage.getItem("accessToken") ||
-      sessionStorage.getItem("accessToken")
-    );
-  };
+  const abortRef = useRef(null);
 
-  const getUserRole = useCallback(() => {
-    try {
-      const token = getToken();
-      if (!token) return null;
-      const payload = JSON.parse(atob(token.split(".")[1]));
-      return payload.role || payload.userRole;
-    } catch (error) {
-      const userStr =
-        localStorage.getItem("user") || sessionStorage.getItem("user");
-      if (userStr) {
-        try {
-          const user = JSON.parse(userStr);
-          return user?.role;
-        } catch (e) {
-          return null;
-        }
-      }
-      return null;
-    }
-  }, []);
-
-  const getAuthHeaders = () => {
-    const token = getToken();
-    return {
-      headers: {
-        Authorization: `Bearer ${token}`,
-        "Content-Type": "application/json",
-      },
+  // FIX 2: listen for auth:expired and clear state so UI reacts immediately
+  useEffect(() => {
+    const handleExpired = () => {
+      setAssets([]);
+      setAssetStats(null);
+      setError("Session expired. Please log in again.");
     };
-  };
+    window.addEventListener("auth:expired", handleExpired);
+    return () => window.removeEventListener("auth:expired", handleExpired);
+  }, []);
 
-  // Get all assets
-  const getAllAssets = useCallback(async (filters = {}) => {
-    setLoading(true);
-    setError(null);
-    try {
-      const params = new URLSearchParams();
-      Object.keys(filters).forEach((key) => {
-        if (
-          filters[key] !== undefined &&
-          filters[key] !== "" &&
-          filters[key] !== null
-        ) {
-          params.append(key, filters[key]);
+  const extractError = useCallback((err, fallback = "An error occurred") => {
+    const msg =
+      err?.response?.data?.message ||
+      err?.response?.data?.error ||
+      err?.message ||
+      fallback;
+    setError(msg);
+    return msg;
+  }, []);
+
+  const getAllAssets = useCallback(
+    async (filters = {}) => {
+      if (abortRef.current) abortRef.current.abort();
+      abortRef.current = new AbortController();
+
+      setLoading(true);
+      setError(null);
+      try {
+        const params = new URLSearchParams();
+        Object.entries(filters).forEach(([k, v]) => {
+          if (v !== undefined && v !== "" && v !== null) params.append(k, v);
+        });
+
+        const url = `/assets${params.toString() ? `?${params}` : ""}`;
+        const res = await api.get(url, { signal: abortRef.current.signal });
+
+        if (res.data?.success) {
+          const deduped = deduplicateAssets(res.data.assets || []);
+          setAssets(deduped);
+
+          if (res.data.stats) setAssetStats(res.data.stats);
+
+          const pag = res.data.pagination || {};
+          const newPag = {
+            page: pag.page || filters.page || 1,
+            limit: pag.limit || filters.limit || 12,
+            total: pag.total ?? deduped.length,
+            pages: pag.pages || 1,
+          };
+          setPagination(newPag);
+          return { ...res.data, assets: deduped, pagination: newPag };
         }
-      });
-
-      const url = `${API_BASE_URL}/asset${params.toString() ? `?${params.toString()}` : ""}`;
-      const response = await axios.get(url, getAuthHeaders());
-
-      if (response.data && response.data.success) {
-        setAssets(response.data.assets || []);
-        setPagination(
-          response.data.pagination || {
-            page: filters.page || 1,
-            limit: filters.limit || 10,
-            total: (response.data.assets || []).length,
-            totalPages: 1,
-          },
-        );
-        return response.data;
+        return null;
+      } catch (err) {
+        if (axios.isCancel(err) || err?.name === "CanceledError") return null;
+        extractError(err, "Failed to fetch assets");
+        throw err;
+      } finally {
+        setLoading(false);
       }
-      return null;
-    } catch (error) {
-      console.error("Error fetching assets:", error);
-      setError(error.response?.data?.message || error.message);
-      throw error;
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+    },
+    [extractError],
+  );
 
-  // Get single asset
-  const getAssetById = useCallback(async (id) => {
-    setLoading(true);
-    setError(null);
-    try {
-      const response = await axios.get(
-        `${API_BASE_URL}/asset/${id}`,
-        getAuthHeaders(),
-      );
-      return response.data;
-    } catch (error) {
-      setError(error.response?.data?.message || error.message);
-      throw error;
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+  const getAssetById = useCallback(
+    async (id) => {
+      setLoading(true);
+      setError(null);
+      try {
+        const res = await api.get(`/assets/${id}`);
+        return res.data;
+      } catch (err) {
+        extractError(err, "Failed to fetch asset");
+        throw err;
+      } finally {
+        setLoading(false);
+      }
+    },
+    [extractError],
+  );
 
-  // Create asset (Admin only)
-  const createAsset = useCallback(async (assetData) => {
-    setLoading(true);
-    setError(null);
-    try {
-      const response = await axios.post(
-        `${API_BASE_URL}/asset/add`,
-        assetData,
-        getAuthHeaders(),
-      );
-      return { success: true, data: response.data };
-    } catch (error) {
-      console.error("Error creating asset:", error);
-      setError(error.response?.data?.message || error.message);
-      throw error;
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+  const createAsset = useCallback(
+    async (assetData) => {
+      setLoading(true);
+      setError(null);
+      try {
+        const res = await api.post("/assets/add", assetData);
+        // Return a normalised shape so callers always check res.success
+        return { success: true, data: res.data };
+      } catch (err) {
+        const msg = extractError(err, "Failed to create asset");
+        throw new Error(msg);
+      } finally {
+        setLoading(false);
+      }
+    },
+    [extractError],
+  );
 
-  // Create asset request (Team only)
-  const createAssetRequest = useCallback(async (requestData) => {
-    setLoading(true);
-    setError(null);
-    try {
-      const response = await axios.post(
-        `${API_BASE_URL}/asset/request`,
-        requestData,
-        getAuthHeaders(),
-      );
-      return { success: true, data: response.data };
-    } catch (error) {
-      console.error("Error creating asset request:", error);
-      setError(error.response?.data?.message || error.message);
-      throw error;
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+  const updateAsset = useCallback(
+    async (id, assetData) => {
+      setLoading(true);
+      setError(null);
+      try {
+        const res = await api.put(`/assets/${id}`, assetData);
+        return res.data;
+      } catch (err) {
+        extractError(err, "Failed to update asset");
+        throw err;
+      } finally {
+        setLoading(false);
+      }
+    },
+    [extractError],
+  );
 
-  // Update asset
-  const updateAsset = useCallback(async (id, assetData) => {
-    setLoading(true);
-    setError(null);
-    try {
-      const response = await axios.put(
-        `${API_BASE_URL}/asset/${id}`,
-        assetData,
-        getAuthHeaders(),
-      );
-      return response.data;
-    } catch (error) {
-      setError(error.response?.data?.message || error.message);
-      throw error;
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+  const deleteAsset = useCallback(
+    async (id, reason = "") => {
+      setLoading(true);
+      setError(null);
+      try {
+        const res = await api.delete(`/assets/${id}`, { data: { reason } });
+        return res.data;
+      } catch (err) {
+        extractError(err, "Failed to delete asset");
+        throw err;
+      } finally {
+        setLoading(false);
+      }
+    },
+    [extractError],
+  );
 
-  // Delete asset
-  const deleteAsset = useCallback(async (id, permanent = false) => {
-    setLoading(true);
-    setError(null);
-    try {
-      const response = await axios.delete(
-        `${API_BASE_URL}/asset/${id}?permanent=${permanent}`,
-        getAuthHeaders(),
-      );
-      return response.data;
-    } catch (error) {
-      setError(error.response?.data?.message || error.message);
-      throw error;
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+  const updateAssetStatus = useCallback(
+    async (id, status, reason = "") => {
+      setLoading(true);
+      setError(null);
+      try {
+        const res = await api.patch(`/assets/${id}/status`, { status, reason });
+        return res.data;
+      } catch (err) {
+        extractError(err, "Failed to update asset status");
+        throw err;
+      } finally {
+        setLoading(false);
+      }
+    },
+    [extractError],
+  );
 
-  // Clone asset - Fixed version
-  // Clone asset - Fixed version with better error handling
-  const cloneAsset = useCallback(async (id, cloneData = {}) => {
-    setLoading(true);
-    setError(null);
-    try {
-      // Only send necessary data, avoid sending extra fields
-      const payload = {
-        cloneNote:
-          cloneData.cloneNote ||
-          `Cloned from asset on ${new Date().toLocaleDateString()}`,
-      };
+  const cloneAsset = useCallback(
+    async (id, cloneData = {}) => {
+      setLoading(true);
+      setError(null);
+      try {
+        const res = await api.post(`/assets/${id}/clone`, cloneData);
+        return res.data;
+      } catch (err) {
+        extractError(err, "Failed to clone asset");
+        throw err;
+      } finally {
+        setLoading(false);
+      }
+    },
+    [extractError],
+  );
 
-      const response = await axios.post(
-        `${API_BASE_URL}/asset/${id}/clone`,
-        payload,
-        getAuthHeaders(),
-      );
-      return response.data;
-    } catch (error) {
-      console.error("Error cloning asset:", error);
-      const errorMessage =
-        error.response?.data?.message ||
-        error.response?.data?.error ||
-        error.message ||
-        "Failed to clone asset";
-      setError(errorMessage);
-      throw error;
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  // Get asset clones
-  const getAssetClones = useCallback(async (id, page = 1, limit = 10) => {
-    setLoading(true);
-    setError(null);
-    try {
-      const response = await axios.get(
-        `${API_BASE_URL}/asset/${id}/clones?page=${page}&limit=${limit}`,
-        getAuthHeaders(),
-      );
-      return response.data;
-    } catch (error) {
-      setError(error.response?.data?.message || error.message);
-      throw error;
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  // Link child assets
-  const linkChildAssets = useCallback(async (id, childAssetIds) => {
-    setLoading(true);
-    setError(null);
-    try {
-      const response = await axios.post(
-        `${API_BASE_URL}/asset/${id}/link`,
-        { childAssetIds },
-        getAuthHeaders(),
-      );
-      return response.data;
-    } catch (error) {
-      setError(error.response?.data?.message || error.message);
-      throw error;
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  // Update asset status
-  const updateAssetStatus = useCallback(async (id, status, reason = "") => {
-    setLoading(true);
-    setError(null);
-    try {
-      const response = await axios.patch(
-        `${API_BASE_URL}/asset/${id}/status`,
-        { status, reason },
-        getAuthHeaders(),
-      );
-      return response.data;
-    } catch (error) {
-      setError(error.response?.data?.message || error.message);
-      throw error;
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  // Upload asset images
-  const uploadAssetImages = useCallback(async (id, formData) => {
-    setLoading(true);
-    setError(null);
-    try {
-      const token = getToken();
-      const response = await axios.post(
-        `${API_BASE_URL}/asset/${id}/images`,
-        formData,
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-            "Content-Type": "multipart/form-data",
-          },
-        },
-      );
-      return response.data;
-    } catch (error) {
-      console.error("Error uploading images:", error);
-      setError(error.response?.data?.message || error.message);
-      throw error;
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  // Delete asset image
-  const deleteAssetImage = useCallback(async (id, imageName) => {
-    setLoading(true);
-    setError(null);
-    try {
-      const response = await axios.delete(
-        `${API_BASE_URL}/asset/${id}/images/${imageName}`,
-        getAuthHeaders(),
-      );
-      return response.data;
-    } catch (error) {
-      setError(error.response?.data?.message || error.message);
-      throw error;
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  // Set primary image
-  const setPrimaryImage = useCallback(async (id, imageName) => {
-    setLoading(true);
-    setError(null);
-    try {
-      const response = await axios.patch(
-        `${API_BASE_URL}/asset/${id}/images/${imageName}/primary`,
-        {},
-        getAuthHeaders(),
-      );
-      return response.data;
-    } catch (error) {
-      setError(error.response?.data?.message || error.message);
-      throw error;
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  const value = {
-    assets,
-    loading,
-    pagination,
-    error,
-    getAllAssets,
-    getAssetById,
-    createAsset,
-    createAssetRequest,
-    updateAsset,
-    deleteAsset,
-    cloneAsset,
-    getAssetClones,
-    linkChildAssets,
-    updateAssetStatus,
-    uploadAssetImages,
-    deleteAssetImage,
-    setPrimaryImage,
-    userRole: getUserRole(),
-  };
+  const getAssetClones = useCallback(
+    async (page = 1, limit = 10) => {
+      setLoading(true);
+      setError(null);
+      try {
+        const res = await api.get(`/assets/clones?page=${page}&limit=${limit}`);
+        return res.data;
+      } catch (err) {
+        extractError(err, "Failed to fetch clones");
+        throw err;
+      } finally {
+        setLoading(false);
+      }
+    },
+    [extractError],
+  );
 
   return (
-    <AssetContext.Provider value={value}>{children}</AssetContext.Provider>
+    <AssetContext.Provider
+      value={{
+        assets,
+        assetStats,
+        loading,
+        pagination,
+        error,
+        setError,
+        getAllAssets,
+        getAssetById,
+        createAsset,
+        updateAsset,
+        deleteAsset,
+        cloneAsset,
+        getAssetClones,
+        updateAssetStatus,
+      }}
+    >
+      {children}
+    </AssetContext.Provider>
   );
 };
