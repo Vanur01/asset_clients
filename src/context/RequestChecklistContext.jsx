@@ -315,7 +315,7 @@ export const RequestChecklistProvider = ({ children }) => {
       try {
         const token = localStorage.getItem("accessToken");
         const response = await fetch(
-          `${process.env.REACT_APP_API_BASE_URL || "http://localhost:9001/api/v1"}/checklist-requests/${requestId}/files/${fileId}`,
+          `${process.env.REACT_APP_API_BASE_URL || "https://assset-management-backend-4.onrender.com/api/v1"}/checklist-requests/${requestId}/files/${fileId}`,
           {
             headers: {
               Authorization: `Bearer ${token}`,

@@ -562,7 +562,7 @@ export default function EditAsset() {
   };
 
   const getImageUrl = (name) =>
-    name ? `http://localhost:9001/uploads/assets/${name}` : null;
+    name ? `https://assset-management-backend-4.onrender.com/uploads/assets/${name}` : null;
 
   // ─── Submit ───────────────────────────────────────────────
   const handleSubmit = async () => {

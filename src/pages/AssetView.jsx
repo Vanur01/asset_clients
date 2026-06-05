@@ -424,7 +424,7 @@ const LinkAssetDialog = ({ open, onClose, assetId, onSuccess }) => {
         return;
       }
       const API =
-        import.meta.env?.VITE_API_URL || "http://localhost:9001/api/v1";
+        import.meta.env?.VITE_API_URL || "https://assset-management-backend-4.onrender.com/api/v1";
       const res = await fetch(`${API}/assets?limit=200`, {
         headers: {
           Authorization: `Bearer ${token}`,
@@ -1520,7 +1520,7 @@ export default function AssetView() {
 
   const getImageUrl = (name) =>
     name
-      ? `${import.meta.env?.VITE_API_URL?.replace("/api/v1", "") || "http://localhost:9001"}/uploads/assets/${name}`
+      ? `${import.meta.env?.VITE_API_URL?.replace("/api/v1", "") || "https://assset-management-backend-4.onrender.com"}/uploads/assets/${name}`
       : null;
 
   // ── Loading skeleton ──────────────────────────────────────────────────────

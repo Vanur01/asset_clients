@@ -28,7 +28,7 @@ export const useAsset = () => {
 };
 
 const API_BASE_URL =
-  import.meta.env?.VITE_API_URL || "http://localhost:9001/api/v1";
+  import.meta.env?.VITE_API_URL || "https://assset-management-backend-4.onrender.com/api/v1";
 
 // ─── Shared axios instance (exported for all contexts to import) ──────────────
 export const api = axios.create({ baseURL: API_BASE_URL });

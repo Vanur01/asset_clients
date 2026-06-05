@@ -1812,7 +1812,7 @@ export default function ChecklistPage() {
       let adminsData = [];
       try {
         const response = await axios.get(
-          `http://localhost:9001/api/v1/user/clients?limit=100`,
+          `https://assset-management-backend-4.onrender.com/api/v1/user/clients?limit=100`,
           {
             headers: {
               Authorization: `Bearer ${token}`,
