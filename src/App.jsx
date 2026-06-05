@@ -1,4 +1,4 @@
-// App.jsx - Fixed with Admin and Team only (Super Admin removed)
+// App.jsx - Fixed: super_admin treated as admin everywhere
 import React from "react";
 import {
   BrowserRouter as Router,
@@ -97,6 +97,15 @@ const AppProviders = ({ children }) => (
   </AuthProvider>
 );
 
+// ==================== ROLE HELPER ====================
+// FIX: super_admin has all privileges that admin has.
+// Normalise the user's role before checking allowedRoles so that
+// every route that lists "admin" automatically accepts "super_admin" too.
+const effectiveRole = (role) => {
+  if (role === "super_admin") return "admin";
+  return role;
+};
+
 // ==================== PROTECTED ROUTE COMPONENT ====================
 const ProtectedRoute = ({ children, allowedRoles }) => {
   const { user, loading, isAuthenticated } = useAuth();
@@ -140,18 +149,14 @@ const ProtectedRoute = ({ children, allowedRoles }) => {
     return <Navigate to="/login" replace />;
   }
 
-  console.log("User role:", user.role, "Allowed roles:", allowedRoles);
+  // FIX: normalise super_admin → admin for role checks
+  const role = effectiveRole(user.role);
+  console.log("User role:", user.role, "→ effective:", role, "Allowed roles:", allowedRoles);
 
-  // Check if user's role is allowed
-  if (!allowedRoles.includes(user.role)) {
+  if (!allowedRoles.includes(role)) {
     console.log("Role not allowed, redirecting based on role");
-    // Redirect based on role
-    if (user.role === "admin") {
-      return <Navigate to="/dashboard" replace />;
-    }
-    if (user.role === "team") {
-      return <Navigate to="/team" replace />;
-    }
+    if (role === "admin") return <Navigate to="/dashboard" replace />;
+    if (role === "team")  return <Navigate to="/team" replace />;
     return <Navigate to="/login" replace />;
   }
 

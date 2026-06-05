@@ -1,18 +1,4 @@
 // src/context/AuthContexts.jsx
-// ─── FIXES ────────────────────────────────────────────────────────────────────
-// 1. auth:expired listener: AuthProvider now listens for the CustomEvent fired
-//    by the api interceptor in AssetContext. Previously the interceptor cleared
-//    storage but React state (user, token) stayed populated, so every component
-//    that reads `user` from context stayed "logged in" until a hard reload.
-//
-// 2. Token key consistency: login() writes ONLY "accessToken" (not both
-//    "accessToken" AND "token"). The shared api interceptor reads "accessToken"
-//    first, then falls back to "token", then sessionStorage. Writing two keys
-//    was redundant and created confusion during logout (one key could linger).
-//    clearAuthData() removes all legacy keys so old sessions don't survive.
-//
-// 3. logout() also removes localStorage.token (the legacy key) to be safe.
-// ─────────────────────────────────────────────────────────────────────────────
 import React, {
   createContext,
   useState,
@@ -35,10 +21,10 @@ export const useAuth = () => {
 
 const API_BASE_URL = "https://assset-management-backend-4.onrender.com/api/v1";
 
-// FIX 2: remove both keys so legacy "token" key never lingers
+// Clear all auth data from storage
 const clearAuthData = () => {
   localStorage.removeItem("accessToken");
-  localStorage.removeItem("token"); // legacy key
+  localStorage.removeItem("token");
   localStorage.removeItem("user");
   localStorage.removeItem("userType");
   localStorage.removeItem("rememberMe");
@@ -55,11 +41,8 @@ export const AuthProvider = ({ children }) => {
   const initializeAuth = useCallback(() => {
     console.log("Initializing authentication...");
     const storedUser = localStorage.getItem("user");
-    // FIX 2: read accessToken first, fall back to legacy "token" key
     const storedToken =
-      localStorage.getItem("accessToken") ||
-      localStorage.getItem("token") ||
-      sessionStorage.getItem("accessToken");
+      localStorage.getItem("accessToken") || localStorage.getItem("token");
     const storedUserType = localStorage.getItem("userType");
 
     const isValidUser =
@@ -93,8 +76,7 @@ export const AuthProvider = ({ children }) => {
     initializeAuth();
   }, [initializeAuth]);
 
-  // FIX 1: listen for auth:expired dispatched by the shared api interceptor
-  // so React state is cleared immediately — not just localStorage.
+  // Listen for auth:expired event from API interceptor
   useEffect(() => {
     const handleExpired = () => {
       console.log("[Auth] Session expired — clearing React state");
@@ -118,7 +100,8 @@ export const AuthProvider = ({ children }) => {
 
       const response = await tempApi.post("/auth/login", { email, password });
 
-      console.log("Login response:", response.data);
+      console.log("Login response status:", response.status);
+      console.log("Login response data:", response.data);
 
       if (
         response.data.success &&
@@ -171,9 +154,7 @@ export const AuthProvider = ({ children }) => {
           userRoleType = "admin";
           redirectPath = "/dashboard";
         } else if (
-          backendRole === "team" ||
-          backendRole === "team_member" ||
-          backendRole === "team-member"
+          backendRole === "team" 
         ) {
           transformedUser = {
             id: userData.id || userData._id,
@@ -212,23 +193,20 @@ export const AuthProvider = ({ children }) => {
           };
           userRoleType = userData.role || "team";
           redirectPath =
-            userData.role === "team" || userData.role === "team_member"
+            userData.role === "team"
               ? "/team"
               : "/dashboard";
         }
 
-        // FIX 2: write ONLY "accessToken" — the shared api interceptor reads
-        // this key first, and we also write the legacy "token" key as a fallback
-        // for any code that hasn't been updated yet.
+        // Store auth data
         localStorage.setItem("accessToken", accessToken);
-        localStorage.setItem("token", accessToken); // legacy compat
+        localStorage.setItem("token", accessToken);
         localStorage.setItem("user", JSON.stringify(transformedUser));
         localStorage.setItem("userType", userRoleType);
 
         setToken(accessToken);
         setUser(transformedUser);
         setUserType(userRoleType);
-        setLoading(false);
 
         console.log(
           "Login successful! Role:",
@@ -420,7 +398,6 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  // FIX 3: logout removes the legacy "token" key too
   const logout = useCallback(async () => {
     console.log("Logging out...");
     try {
@@ -452,7 +429,6 @@ export const AuthProvider = ({ children }) => {
       setToken(null);
       setUser(null);
       setUserType(null);
-      setLoading(false);
       console.log("Logout complete");
     }
   }, [token]);
