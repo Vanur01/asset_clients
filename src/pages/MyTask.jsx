@@ -1,987 +1,649 @@
-// MyTasks.jsx - Fixed Version
-
-import { useState, useCallback } from "react";
-import { useNavigate } from "react-router-dom";
+// src/pages/MyTask.jsx
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import {
-  Box,
-  Typography,
-  Button,
-  Card,
-  CardContent,
-  Grid,
-  Select,
-  MenuItem,
-  FormControl,
-  TextField,
-  Stack,
-  IconButton,
-  Skeleton,
-  Alert,
-  Tooltip,
-  Dialog,
-  DialogContent,
-  Pagination,
+  Box, Container, Typography, Paper, Button, IconButton, TextField,
+  Select, MenuItem, FormControl, Chip, Avatar, Stack, CircularProgress,
+  Alert, Snackbar, InputAdornment, Tooltip, useMediaQuery, Pagination,
+  Skeleton, Fade, Grid, LinearProgress, Popover, List, ListItem,
+  ListItemText, Divider,
 } from "@mui/material";
-import { createTheme, ThemeProvider } from "@mui/material/styles";
-import FilterListIcon from "@mui/icons-material/FilterList";
-import PlayArrowIcon from "@mui/icons-material/PlayArrow";
-import ViewListIcon from "@mui/icons-material/ViewList";
-import CalendarMonthIcon from "@mui/icons-material/CalendarMonth";
-import DescriptionOutlinedIcon from "@mui/icons-material/DescriptionOutlined";
-import LocationOnOutlinedIcon from "@mui/icons-material/LocationOnOutlined";
-import CalendarTodayOutlinedIcon from "@mui/icons-material/CalendarTodayOutlined";
-import ChevronLeftIcon from "@mui/icons-material/ChevronLeft";
-import ChevronRightIcon from "@mui/icons-material/ChevronRight";
-import CloseIcon from "@mui/icons-material/Close";
-import RefreshIcon from "@mui/icons-material/Refresh";
-import BusinessIcon from "@mui/icons-material/Business";
-import { useAssignment } from "../context/TeamAssignmentcontext";
+import { createTheme, ThemeProvider, alpha } from "@mui/material/styles";
+import {
+  Search as SearchIcon, Refresh as RefreshIcon, Assignment as AssignmentIcon,
+  CheckCircle as CheckCircleIcon, ErrorOutline as ErrorOutlineIcon,
+  HourglassTop as HourglassTopIcon, CalendarMonth as CalendarMonthIcon,
+  Clear as ClearIcon, PendingActions as PendingIcon, DoneAll as DoneAllIcon,
+  Warning as WarningIcon, ViewList as ViewListIcon,
+  CalendarViewWeek as CalendarViewIcon, NavigateBefore as NavigateBeforeIcon,
+  NavigateNext as NavigateNextIcon, Today as TodayIcon, Circle as CircleIcon,
+  PlayArrow as PlayArrowIcon, Refresh as ContinueIcon,
+  LocationOn as LocationIcon, Description as DescriptionIcon,
+} from "@mui/icons-material";
+import { useNavigate } from "react-router-dom";
+import { useTeamAssignment } from "../context/TeamAssignmentContext";
+import { useAuth } from "../context/AuthContexts";
 
-/* ═══════════════════════════════ THEME ═════════════════════════════════════ */
-export const theme = createTheme({
+// ─── Theme ───────────────────────────────────────────────────────────────────
+const theme = createTheme({
   palette: {
-    primary: { main: "#0d3d52" },
-    background: { default: "#f5f6f8", paper: "#ffffff" },
-    text: { primary: "#111827", secondary: "#6b7280" },
+    primary: { main: "#0d3d52", dark: "#072535", light: "#e6f3f8", contrastText: "#fff" },
+    success: { main: "#0ea472" },
+    warning: { main: "#e09b2d" },
+    error: { main: "#d94f4f" },
+    background: { default: "#f4f6f9", paper: "#ffffff" },
   },
   shape: { borderRadius: 12 },
   typography: {
-    fontFamily: "'DM Sans','Segoe UI',sans-serif",
-    body2: { fontSize: "0.75rem" },
+    fontFamily: "'Inter', sans-serif",
+    h5: { fontWeight: 800, letterSpacing: "-0.5px" },
+    h6: { fontWeight: 700, letterSpacing: "-0.3px" },
   },
   components: {
-    MuiCard: {
-      styleOverrides: {
-        root: {
-          boxShadow: "0 1px 4px rgba(0,0,0,.06)",
-          border: "1.5px solid #e9eaec",
-          borderRadius: 14,
-        },
-      },
-    },
-    MuiOutlinedInput: {
-      styleOverrides: {
-        root: { borderRadius: 10, background: "#fff", fontSize: "0.75rem" },
-        notchedOutline: { borderColor: "#e5e7eb" },
-      },
-    },
+    MuiPaper: { styleOverrides: { root: { boxShadow: "0 1px 4px rgba(0,0,0,0.07), 0 0 0 1px rgba(0,0,0,0.04)" } } },
+    MuiCard: { styleOverrides: { root: { boxShadow: "0 1px 4px rgba(0,0,0,0.07), 0 0 0 1px rgba(0,0,0,0.04)" } } },
+    MuiButton: { styleOverrides: { root: { textTransform: "none", fontWeight: 600, borderRadius: 8 } } },
+    MuiChip: { styleOverrides: { root: { fontWeight: 600, borderRadius: 6 } } },
   },
 });
 
-/* ═══════════════ CALENDAR STATIC DATA ═══════════════════════════════════ */
-const LEGEND = [
-  { color: "#f472b6", label: "Extremely Critical" },
-  { color: "#ef4444", label: "High Priority" },
-  { color: "#f97316", label: "Medium Priority" },
-  { color: "#3b82f6", label: "Low Priority" },
-  { color: "#22c55e", label: "In Progress" },
-  { color: "#9ca3af", label: "Overdue" },
-];
+// ─── Config ───────────────────────────────────────────────────────────────────
+const STATUS_CFG = {
+  pending:     { label: "Pending",     color: "#b45309", bg: "#fef9ee", icon: HourglassTopIcon },
+  in_progress: { label: "In Progress", color: "#1d4ed8", bg: "#eff6ff", icon: HourglassTopIcon },
+  submitted:   { label: "Submitted",   color: "#6d28d9", bg: "#f5f3ff", icon: AssignmentIcon   },
+  completed:   { label: "Completed",   color: "#047857", bg: "#ecfdf5", icon: CheckCircleIcon  },
+  approved:    { label: "Approved",    color: "#047857", bg: "#ecfdf5", icon: CheckCircleIcon  },
+  rejected:    { label: "Rejected",    color: "#b91c1c", bg: "#fef2f2", icon: ErrorOutlineIcon },
+  overdue:     { label: "Overdue",     color: "#b91c1c", bg: "#fef2f2", icon: ErrorOutlineIcon },
+};
 
-const DAY_HEADERS = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"];
-const MONTHS = [
-  "January",
-  "February",
-  "March",
-  "April",
-  "May",
-  "June",
-  "July",
-  "August",
-  "September",
-  "October",
-  "November",
-  "December",
-];
+const PRIORITY_CFG = {
+  low:      { label: "Low Priority",      color: "#fff", bg: "#3b82f6" },
+  medium:   { label: "Medium Priority",   color: "#fff", bg: "#0d3d52" },
+  high:     { label: "High Priority",     color: "#fff", bg: "#ef4444" },
+  critical: { label: "Critical Priority", color: "#fff", bg: "#991b1b" },
+};
 
-/* ═══════════════════════════ HELPERS ═══════════════════════════════════════ */
-const Badge = ({ bg, color, children, ml = 0, small = false }) => (
-  <Box
-    sx={{
-      background: bg,
-      color,
-      borderRadius: "20px",
-      px: small ? 0.8 : 1.2,
-      py: small ? 0.2 : 0.35,
-      fontSize: small ? "0.62rem" : "0.68rem",
-      fontWeight: 600,
-      display: "inline-block",
-      whiteSpace: "nowrap",
-      ml,
-    }}
-  >
-    {children}
-  </Box>
-);
+const PRIORITY_DOT_COLOR = {
+  low: "#3b82f6", medium: "#b45309", high: "#b91c1c", critical: "#7f1d1d",
+};
 
-const MetaRow = ({ Icon, text }) => (
-  <Box display="flex" alignItems="center" gap={0.8}>
-    <Icon sx={{ fontSize: 12, color: "#6b7280", flexShrink: 0 }} />
-    <Typography
-      variant="body2"
-      color="text.secondary"
-      sx={{ fontSize: "0.72rem" }}
-    >
-      {text}
-    </Typography>
-  </Box>
-);
+// ─── Status Chip ──────────────────────────────────────────────────────────────
+const StatusChip = ({ status }) => {
+  const cfg = STATUS_CFG[status?.toLowerCase()] || STATUS_CFG.pending;
+  return <Chip label={cfg.label} size="small" sx={{ bgcolor: cfg.bg, color: cfg.color, fontSize: 11 }} />;
+};
 
-/* ═══════════════════════════ SHARED HEADER ═════════════════════════════════ */
-const Header = ({ view, setView, onRefresh, loading }) => (
-  <Box
-    sx={{
-      display: "flex",
-      justifyContent: "space-between",
-      alignItems: "flex-start",
-      px: { xs: 2, md: 3 },
-      pt: 2.5,
-      pb: 0.5,
-    }}
-  >
-    <Box>
-      <Typography
-        sx={{
-          fontWeight: 700,
-          fontSize: { xs: "1rem", md: "1.2rem" },
-          color: "#0d3d52",
-        }}
-      >
-        My Tasks
-      </Typography>
-      <Typography
-        variant="body2"
-        color="text.secondary"
-        sx={{ fontSize: "0.7rem" }}
-      >
-        Your assigned inspection tasks
-      </Typography>
-    </Box>
-    <Box display="flex" alignItems="center" gap={1}>
-      <IconButton
-        size="small"
-        onClick={onRefresh}
-        disabled={loading}
-        sx={{
-          border: "1.5px solid #e5e7eb",
-          borderRadius: "8px",
-          width: 32,
-          height: 32,
-          color: "#6b7280",
-        }}
-      >
-        <RefreshIcon sx={{ fontSize: 16 }} />
-      </IconButton>
-      <Box
-        sx={{
-          display: "flex",
-          border: "1.5px solid #e5e7eb",
-          borderRadius: "10px",
-          background: "#fff",
-          p: "3px",
-          gap: "2px",
-        }}
-      >
-        {[
-          {
-            val: "list",
-            icon: <ViewListIcon sx={{ fontSize: 14 }} />,
-            label: "List",
-          },
-          {
-            val: "calendar",
-            icon: <CalendarMonthIcon sx={{ fontSize: 14 }} />,
-            label: "Calendar",
-          },
-        ].map(({ val, icon, label }) => (
-          <Button
-            key={val}
-            onClick={() => setView(val)}
-            startIcon={icon}
-            sx={{
-              textTransform: "none",
-              fontWeight: 500,
-              fontSize: "0.7rem",
-              borderRadius: "8px",
-              px: { xs: 1, md: 1.5 },
-              py: 0.6,
-              minWidth: 0,
-              border: "none",
-              color: view === val ? "#111827" : "#6b7280",
-              background: view === val ? "#fff" : "transparent",
-              boxShadow: view === val ? "0 1px 3px rgba(0,0,0,.08)" : "none",
-              "&:hover": { background: view === val ? "#fff" : "#f9fafb" },
-            }}
-          >
-            {label}
-          </Button>
-        ))}
-      </Box>
-    </Box>
-  </Box>
-);
+// ─── Task Card (Grid View) ────────────────────────────────────────────────────
+const TaskCard = ({ task, onView }) => {
+  const prKey = task.priority?.toLowerCase() || "medium";
+  const prCfg = PRIORITY_CFG[prKey] || PRIORITY_CFG.medium;
+  const stKey = task.status?.toLowerCase() || "pending";
+  const stCfg = STATUS_CFG[stKey] || STATUS_CFG.pending;
+  const StIcon = stCfg.icon;
 
-/* ═══════════════════════════ FILTERS BAR ═══════════════════════════════════ */
-const FiltersBar = ({ showMore = true, onFilter, filters }) => {
-  const [status, setStatus] = useState(filters.status || "");
-  const [priority, setPriority] = useState(filters.priority || "");
-  const [date, setDate] = useState("");
+  const checklistName = task.checklists?.[0]?.name || task.checklistData?.[0]?.name || "—";
+  const assetName = task.assets?.[0]?.assetName || task.assets?.[0]?.tagNumber || "—";
+  const assetLocation = task.assetIds?.[0]?.currentLocation || task.assets?.[0]?.currentLocation || "";
 
-  const apply = (newStatus, newPriority) =>
-    onFilter({ status: newStatus, priority: newPriority });
+  const dueDate = task.dueDate ? new Date(task.dueDate) : null;
+  const isOverdue = dueDate && dueDate < new Date();
+  const completionRate = task.checklistData?.[0]?.completionRate ?? task.completionRate ?? 0;
+
+  const btnLabel = stKey === "in_progress" ? "Continue Inspection" : "Start Inspection";
 
   return (
     <Box
       sx={{
-        mx: { xs: 2, md: 3 },
-        mb: 2,
-        mt: 1,
-        border: "1.5px solid #e9eaec",
-        borderRadius: "12px",
-        background: "#fff",
-        px: 1.5,
-        py: 1,
+        bgcolor: "white",
+        borderRadius: 3,
+        border: "1px solid rgba(0,0,0,0.07)",
+        boxShadow: "0 1px 4px rgba(0,0,0,0.06)",
+        overflow: "hidden",
         display: "flex",
-        gap: 1,
-        alignItems: "center",
-        flexWrap: "wrap",
+        flexDirection: "column",
+        transition: "box-shadow 0.2s, transform 0.15s",
+        "&:hover": { boxShadow: "0 4px 16px rgba(0,0,0,0.10)", transform: "translateY(-1px)" },
       }}
     >
-      <FormControl size="small" sx={{ minWidth: 120 }}>
-        <Select
-          value={status}
-          onChange={(e) => {
-            setStatus(e.target.value);
-            apply(e.target.value, priority);
-          }}
-          displayEmpty
-          sx={{ fontSize: "0.75rem", borderRadius: "8px" }}
-        >
-          <MenuItem value="">All Tasks</MenuItem>
-          {[
-            "pending",
-            "assigned",
-            "in_progress",
-            "submitted",
-            "completed",
-            "approved",
-            "rejected",
-            "overdue",
-          ].map((s) => (
-            <MenuItem
-              key={s}
-              value={s}
-              sx={{ fontSize: "0.75rem", textTransform: "capitalize" }}
-            >
-              {s.replace("_", " ")}
-            </MenuItem>
-          ))}
-        </Select>
-      </FormControl>
+      {/* Card Header */}
+      <Box sx={{ px: 2.5, pt: 2.5, pb: 1.5 }}>
+        <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", mb: 1.5 }}>
+          <Chip
+            label={prCfg.label}
+            size="small"
+            sx={{ bgcolor: prCfg.bg, color: prCfg.color, fontSize: 11, height: 22, fontWeight: 700 }}
+          />
+          <Chip
+            label={stCfg.label}
+            size="small"
+            icon={<StIcon sx={{ fontSize: "12px !important", color: `${stCfg.color} !important` }} />}
+            sx={{ bgcolor: stCfg.bg, color: stCfg.color, fontSize: 11, height: 22 }}
+          />
+        </Box>
 
-      <FormControl size="small" sx={{ minWidth: 110 }}>
-        <Select
-          value={priority}
-          onChange={(e) => {
-            setPriority(e.target.value);
-            apply(status, e.target.value);
-          }}
-          displayEmpty
-          sx={{ fontSize: "0.75rem", borderRadius: "8px" }}
-        >
-          <MenuItem value="">Priority</MenuItem>
-          {["critical", "high", "medium", "low"].map((p) => (
-            <MenuItem
-              key={p}
-              value={p}
-              sx={{ fontSize: "0.75rem", textTransform: "capitalize" }}
-            >
-              {p}
-            </MenuItem>
-          ))}
-        </Select>
-      </FormControl>
+        <Typography variant="subtitle1" fontWeight={700} sx={{ mb: 0.5, lineHeight: 1.3 }}>
+          {assetName}
+        </Typography>
 
-      <TextField
-        size="small"
-        type="date"
-        value={date}
-        onChange={(e) => setDate(e.target.value)}
-        sx={{
-          "& .MuiOutlinedInput-root": {
-            borderRadius: "8px",
-            fontSize: "0.75rem",
-          },
-        }}
-      />
+        <Stack spacing={0.75} sx={{ mt: 1.5 }}>
+          <Box sx={{ display: "flex", alignItems: "center", gap: 0.75 }}>
+            <DescriptionIcon sx={{ fontSize: 14, color: "#9ca3af" }} />
+            <Typography variant="caption" color="text.secondary">{checklistName}</Typography>
+          </Box>
+          {assetLocation && (
+            <Box sx={{ display: "flex", alignItems: "center", gap: 0.75 }}>
+              <LocationIcon sx={{ fontSize: 14, color: "#9ca3af" }} />
+              <Typography variant="caption" color="text.secondary">{assetLocation}</Typography>
+            </Box>
+          )}
+          <Box sx={{ display: "flex", alignItems: "center", gap: 0.75 }}>
+            <CalendarMonthIcon sx={{ fontSize: 14, color: isOverdue ? "#d94f4f" : "#9ca3af" }} />
+            <Typography variant="caption" sx={{ color: isOverdue ? "#d94f4f" : "text.secondary", fontWeight: isOverdue ? 600 : 400 }}>
+              Due: {dueDate ? dueDate.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "—"}
+            </Typography>
+          </Box>
+        </Stack>
 
-      {showMore && (
+        {completionRate > 0 && (
+          <Box sx={{ mt: 1.5 }}>
+            <LinearProgress
+              variant="determinate"
+              value={completionRate}
+              sx={{
+                height: 4, borderRadius: 2,
+                bgcolor: alpha("#0d3d52", 0.08),
+                "& .MuiLinearProgress-bar": { bgcolor: "#0d3d52", borderRadius: 2 },
+              }}
+            />
+            <Typography variant="caption" color="text.secondary" sx={{ mt: 0.3, display: "block" }}>
+              {completionRate}% complete
+            </Typography>
+          </Box>
+        )}
+      </Box>
+
+      {/* Action Button */}
+      <Box sx={{ px: 2.5, pb: 2.5, mt: "auto" }}>
         <Button
-          startIcon={<FilterListIcon sx={{ fontSize: 13 }} />}
-          onClick={() => apply(status, priority)}
+          fullWidth
+          variant="contained"
+          onClick={() => onView(task._id)}
+          startIcon={stKey === "in_progress" ? <ContinueIcon /> : <PlayArrowIcon />}
           sx={{
-            textTransform: "none",
-            fontWeight: 500,
-            fontSize: "0.72rem",
-            color: "#111827",
-            border: "1.5px solid #e5e7eb",
-            borderRadius: "8px",
-            px: 1.5,
-            py: 0.6,
-            background: "#fff",
-            "&:hover": { background: "#f9fafb" },
+            bgcolor: "#0d3d52",
+            "&:hover": { bgcolor: "#0a2f40" },
+            borderRadius: 2,
+            py: 1,
+            fontSize: 13,
           }}
         >
-          Apply
+          {btnLabel}
         </Button>
-      )}
+      </Box>
     </Box>
   );
 };
 
-/* ═══════════════════════════ STAT CARDS ════════════════════════════════════ */
-const StatCard = ({ label, value, loading }) => (
-  <Card sx={{ flex: 1, minWidth: { xs: "calc(50% - 8px)", sm: 0 } }}>
-    <CardContent sx={{ px: "14px !important", py: "12px !important" }}>
-      <Typography
-        variant="body2"
-        color="text.secondary"
-        mb={0.5}
-        sx={{ fontSize: "0.7rem" }}
-      >
-        {label}
-      </Typography>
-      {loading ? (
-        <Skeleton width={36} height={32} />
-      ) : (
-        <Typography
-          sx={{
-            fontSize: { xs: "1.3rem", md: "1.6rem" },
-            fontWeight: 700,
-            color: "#111827",
-            lineHeight: 1,
-          }}
-        >
-          {value ?? 0}
-        </Typography>
-      )}
-    </CardContent>
-  </Card>
-);
-
-/* ═══════════════════════════ TASK CARD ═════════════════════════════════════ */
-const TaskCard = ({ task, onStart }) => (
-  <Card sx={{ height: "100%", borderRadius: "16px", width: "360px" }}>
-    <CardContent
-      sx={{
-        p: "14px !important",
-        height: "100%",
-        display: "flex",
-        flexDirection: "column",
-      }}
-    >
-      <Box
-        display="flex"
-        justifyContent="space-between"
-        alignItems="flex-start"
-        mb={1}
-        gap={1}
-        flexWrap="wrap"
-      >
-        <Badge bg={task.priorityBg} color={task.priorityColor}>
-          {task.priority}
-        </Badge>
-        <Badge bg={task.statusBg} color={task.statusColor}>
-          {task.status}{" "}
-        </Badge>
+// ─── Stat Card ────────────────────────────────────────────────────────────────
+const StatCard = ({ label, value, icon: Icon, color, bg }) => (
+  <Box sx={{ bgcolor: "white", borderRadius: 2.5, p: 2.5, border: "1px solid rgba(0,0,0,0.06)", flex: 1 }}>
+    <Box sx={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between" }}>
+      <Box>
+        <Typography variant="h4" fontWeight={800} sx={{ color, lineHeight: 1 }}>{value}</Typography>
+        <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 0.5 }}>{label}</Typography>
       </Box>
-
-      <Typography
-        sx={{ fontWeight: 700, fontSize: "0.85rem", color: "#111827", mb: 1 }}
-      >
-        {task.title}
-      </Typography>
-
-      <Stack gap={0.6} mb={1.5}>
-        <MetaRow Icon={DescriptionOutlinedIcon} text={task.type} />
-        <MetaRow Icon={LocationOnOutlinedIcon} text={task.location} />
-        <MetaRow Icon={BusinessIcon} text={task.customerName} />
-        <MetaRow Icon={CalendarTodayOutlinedIcon} text={`Due: ${task.due}`} />
-      </Stack>
-
-      {task.isDraft && (
-        <Box mb={1}>
-          <Badge bg="#fef3c7" color="#92400e" small>
-            Draft saved
-          </Badge>
-        </Box>
-      )}
-
-      <Button
-        fullWidth
-        variant="contained"
-        startIcon={<PlayArrowIcon sx={{ fontSize: 12 }} />}
-        onClick={() => onStart(task)}
-        sx={{
-          background: "linear-gradient(135deg,#0d3d52 0%,#1a5a78 100%)",
-          color: "#fff",
-          textTransform: "none",
-          fontWeight: 600,
-          fontSize: "0.72rem",
-          borderRadius: "8px",
-          py: 0.8,
-          boxShadow: "0 1px 4px rgba(13,61,82,.2)",
-          mt: "auto",
-        }}
-      >
-        {task.btn}
-      </Button>
-    </CardContent>
-  </Card>
-);
-
-const TaskCardSkeleton = () => (
-  <Card sx={{ height: "100%", borderRadius: "16px" }}>
-    <CardContent sx={{ p: "14px !important" }}>
-      <Box display="flex" justifyContent="space-between" mb={1.5}>
-        <Skeleton width={80} height={20} sx={{ borderRadius: "12px" }} />
-        <Skeleton width={70} height={20} sx={{ borderRadius: "12px" }} />
+      <Box sx={{ width: 36, height: 36, borderRadius: 2, bgcolor: bg, display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <Icon sx={{ fontSize: 18, color }} />
       </Box>
-      <Skeleton width="70%" height={22} sx={{ mb: 1.2 }} />
-      <Skeleton width="85%" height={14} sx={{ mb: 0.6 }} />
-      <Skeleton width="75%" height={14} sx={{ mb: 0.6 }} />
-      <Skeleton width="65%" height={14} sx={{ mb: 2 }} />
-      <Skeleton width="100%" height={36} sx={{ borderRadius: "8px" }} />
-    </CardContent>
-  </Card>
+    </Box>
+  </Box>
 );
 
-/* ═══════════════════════ CALENDAR HELPERS ══════════════════════════════════ */
-const buildCalendarData = (assignments) => {
-  const dotsByDay = {};
-  assignments.forEach((a) => {
-    if (!a.due || a.due === "—") return;
-    const day = parseInt(a.due.split("-")[2], 10);
-    if (!dotsByDay[day]) dotsByDay[day] = [];
-    dotsByDay[day].push({ color: a.priorityBg, id: a.id, task: a });
-  });
-  return dotsByDay;
-};
+// ─── Calendar View ────────────────────────────────────────────────────────────
+const CalendarView = ({ tasks, onTaskClick }) => {
+  const [currentDate, setCurrentDate] = useState(new Date());
+  const [popoverAnchor, setPopoverAnchor] = useState(null);
+  const [popoverTasks, setPopoverTasks] = useState([]);
+  const [popoverDate, setPopoverDate] = useState(null);
 
-const buildCalendarWeeks = (year, month) => {
-  const firstDay = new Date(year, month, 1).getDay();
-  const daysInMonth = new Date(year, month + 1, 0).getDate();
-  const daysInPrev = new Date(year, month, 0).getDate();
-  const today = new Date();
-  const isCurrentMonth =
-    today.getFullYear() === year && today.getMonth() === month;
+  const year  = currentDate.getFullYear();
+  const month = currentDate.getMonth();
+
+  // Build day grid
+  const firstDOW  = new Date(year, month, 1).getDay();
+  const daysInMon = new Date(year, month + 1, 0).getDate();
+  const prevLast  = new Date(year, month, 0).getDate();
 
   const cells = [];
-  for (let i = firstDay - 1; i >= 0; i--)
-    cells.push({ d: daysInPrev - i, o: true });
-  for (let d = 1; d <= daysInMonth; d++)
-    cells.push({ d, today: isCurrentMonth && d === today.getDate() });
-  while (cells.length % 7 !== 0)
-    cells.push({ d: cells.length - daysInMonth - firstDay + 1, o: true });
+  for (let i = firstDOW - 1; i >= 0; i--)
+    cells.push({ date: new Date(year, month - 1, prevLast - i), cur: false });
+  for (let d = 1; d <= daysInMon; d++)
+    cells.push({ date: new Date(year, month, d), cur: true });
+  const rem = 42 - cells.length;
+  for (let d = 1; d <= rem; d++)
+    cells.push({ date: new Date(year, month + 1, d), cur: false });
 
-  const weeks = [];
-  for (let i = 0; i < cells.length; i += 7) weeks.push(cells.slice(i, i + 7));
-  return weeks;
-};
+  // Map tasks by date string
+  const taskMap = {};
+  tasks.forEach((t) => {
+    if (!t.dueDate) return;
+    const k = new Date(t.dueDate).toDateString();
+    if (!taskMap[k]) taskMap[k] = [];
+    taskMap[k].push(t);
+  });
 
-/* ═══════════════════════ DAY MODAL ═════════════════════════════════════════ */
-const DayModal = ({ open, day, month, year, tasks, onClose, onStart }) => (
-  <Dialog
-    open={open}
-    onClose={onClose}
-    PaperProps={{
-      sx: { borderRadius: "18px", maxWidth: 520, width: "100%", m: 2 },
-    }}
-  >
-    <DialogContent sx={{ p: 0 }}>
-      <Box
-        sx={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          px: 2.5,
-          py: 1.8,
-          borderBottom: "1px solid #f3f4f6",
-        }}
-      >
-        <Box display="flex" alignItems="center" gap={1}>
-          <Box
-            sx={{
-              background: "#0d3d52",
-              borderRadius: "8px",
-              width: 32,
-              height: 32,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-            }}
-          >
-            <CalendarMonthIcon sx={{ color: "#fff", fontSize: 16 }} />
-          </Box>
-          <Typography
-            sx={{ fontWeight: 700, fontSize: "0.85rem", color: "#111827" }}
-          >
-            {day} {MONTHS[month]} {year}
-          </Typography>
-        </Box>
-        <IconButton onClick={onClose} size="small" sx={{ color: "#6b7280" }}>
-          <CloseIcon sx={{ fontSize: 18 }} />
-        </IconButton>
-      </Box>
+  const today = new Date().toDateString();
 
-      <Box
-        sx={{
-          p: 2.5,
-          display: "flex",
-          flexDirection: "column",
-          gap: 1.5,
-          maxHeight: "65vh",
-          overflowY: "auto",
-        }}
-      >
-        {tasks.map((t) => (
-          <Card
-            key={t.id}
-            sx={{
-              borderRadius: "12px",
-              border: "1.5px solid #e9eaec",
-              boxShadow: "none",
-            }}
-          >
-            <Box display="flex">
-              <Box
-                sx={{
-                  width: 3,
-                  background: t.priorityBg,
-                  flexShrink: 0,
-                  borderRadius: "12px 0 0 12px",
-                }}
-              />
-              <CardContent sx={{ p: "12px 14px !important", flex: 1 }}>
-                <Typography
-                  sx={{
-                    fontWeight: 700,
-                    fontSize: "0.8rem",
-                    color: "#111827",
-                    mb: 0.2,
-                  }}
-                >
-                  {t.title}
-                </Typography>
-                <Typography
-                  variant="body2"
-                  color="text.secondary"
-                  sx={{ fontSize: "0.65rem", mb: 0.8 }}
-                >
-                  {t.assetName}
-                </Typography>
-                <Stack gap={0.4} mb={1}>
-                  <MetaRow Icon={DescriptionOutlinedIcon} text={t.type} />
-                  <MetaRow Icon={LocationOnOutlinedIcon} text={t.location} />
-                </Stack>
-                <Box display="flex" gap={0.8} mb={1.2} flexWrap="wrap">
-                  <Badge bg={t.priorityBg} color={t.priorityColor} small>
-                    {t.priority}
-                  </Badge>
-                  <Badge bg={t.statusBg} color={t.statusColor} small>
-                    {t.status}{" "}
-                  </Badge>
-                </Box>
-                <Button
-                  fullWidth
-                  variant="contained"
-                  startIcon={<PlayArrowIcon sx={{ fontSize: 11 }} />}
-                  onClick={() => {
-                    onClose();
-                    onStart(t);
-                  }}
-                  sx={{
-                    background:
-                      "linear-gradient(135deg,#0d3d52 0%,#1a5a78 100%)",
-                    color: "#fff",
-                    textTransform: "none",
-                    fontWeight: 600,
-                    fontSize: "0.7rem",
-                    borderRadius: "8px",
-                    py: 0.7,
-                  }}
-                >
-                  {t.btn}
-                </Button>
-              </CardContent>
-            </Box>
-          </Card>
-        ))}
-        {tasks.length === 0 && (
-          <Typography
-            color="text.secondary"
-            textAlign="center"
-            py={2}
-            sx={{ fontSize: "0.75rem" }}
-          >
-            No tasks on this day
-          </Typography>
-        )}
-      </Box>
-    </DialogContent>
-  </Dialog>
-);
-
-/* ═══════════════════════ LIST VIEW ═════════════════════════════════════════ */
-const ListView = ({ view, setView, onStart }) => {
-  const {
-    assignments,
-    stats,
-    loading,
-    error,
-    filters,
-    fetchAssignments,
-    applyFilters,
-    pagination,
-    changePage,
-  } = useAssignment();
-
-  return (
-    <>
-      <Header
-        view={view}
-        setView={setView}
-        onRefresh={() => fetchAssignments({})}
-        loading={loading}
-      />
-      <FiltersBar showMore filters={filters} onFilter={applyFilters} />
-
-      {error && (
-        <Box px={3} mb={1.5}>
-          <Alert severity="error" sx={{ fontSize: "0.75rem" }}>
-            {error}
-          </Alert>
-        </Box>
-      )}
-
-      <Box px={{ xs: 2, md: 3 }} mb={2.5}>
-        <Stack direction="row" gap={1.5} flexWrap="wrap">
-          <StatCard
-            label="Total Tasks"
-            value={stats?.total}
-            loading={loading}
-          />
-          <StatCard label="Pending" value={stats?.pending} loading={loading} />
-          <StatCard
-            label="In Progress"
-            value={stats?.inProgress}
-            loading={loading}
-          />
-          <StatCard label="Overdue" value={stats?.overdue} loading={loading} />
-        </Stack>
-      </Box>
-
-      <Box px={{ xs: 2, md: 3 }}>
-        <Grid container spacing={2}>
-          {loading ? (
-            Array.from({ length: 6 }).map((_, i) => (
-              <Grid item xs={12} sm={6} md={4} key={i}>
-                <TaskCardSkeleton />
-              </Grid>
-            ))
-          ) : assignments.length > 0 ? (
-            assignments.map((t) => (
-              <Grid item xs={12} sm={6} md={4} key={t.id}>
-                <TaskCard task={t} onStart={onStart} />
-              </Grid>
-            ))
-          ) : (
-            <Grid item xs={12}>
-              <Box textAlign="center" py={6} color="text.secondary">
-                <Typography variant="h6" sx={{ fontSize: "0.9rem", mb: 0.5 }}>
-                  No assignments found
-                </Typography>
-                <Typography variant="body2" sx={{ fontSize: "0.7rem" }}>
-                  Try changing your filters or check back later.
-                </Typography>
-              </Box>
-            </Grid>
-          )}
-        </Grid>
-
-        {/* FIX: use normalised totalPages from context */}
-        {pagination.totalPages > 1 && (
-          <Box display="flex" justifyContent="center" mt={3} pb={3}>
-            <Pagination
-              count={pagination.totalPages}
-              page={pagination.page}
-              onChange={(_, p) => changePage(p)}
-              color="primary"
-              shape="rounded"
-              size="small"
-            />
-          </Box>
-        )}
-      </Box>
-    </>
-  );
-};
-
-/* ═══════════════════════ CALENDAR VIEW ═════════════════════════════════════ */
-const CalendarView = ({ view, setView, onStart }) => {
-  const { assignments, loading, fetchAssignments, filters, applyFilters } =
-    useAssignment();
-  const now = new Date();
-  const [curYear, setCurYear] = useState(now.getFullYear());
-  const [curMonth, setCurMonth] = useState(now.getMonth());
-  const [modalDay, setModalDay] = useState(null);
-
-  const weeks = buildCalendarWeeks(curYear, curMonth);
-  const dotsByDay = buildCalendarData(
-    assignments.filter((a) => {
-      if (!a.due || a.due === "—") return false;
-      const d = new Date(a.due);
-      return d.getFullYear() === curYear && d.getMonth() === curMonth;
-    }),
-  );
-
-  const prevMonth = () => {
-    if (curMonth === 0) {
-      setCurYear((y) => y - 1);
-      setCurMonth(11);
-    } else setCurMonth((m) => m - 1);
-  };
-  const nextMonth = () => {
-    if (curMonth === 11) {
-      setCurYear((y) => y + 1);
-      setCurMonth(0);
-    } else setCurMonth((m) => m + 1);
+  const handleCellClick = (e, cell) => {
+    const k = cell.date.toDateString();
+    const ts = taskMap[k] || [];
+    if (!ts.length) return;
+    setPopoverTasks(ts);
+    setPopoverDate(cell.date);
+    setPopoverAnchor(e.currentTarget);
   };
 
-  const modalTasks = modalDay
-    ? (dotsByDay[modalDay] || []).map((d) => d.task).filter(Boolean)
-    : [];
-
   return (
-    <>
-      <Header
-        view={view}
-        setView={setView}
-        onRefresh={() => fetchAssignments({})}
-        loading={loading}
-      />
-      <FiltersBar showMore={false} filters={filters} onFilter={applyFilters} />
-
-      <Box px={{ xs: 2, md: 3 }} pb={3}>
-        <Box
-          display="flex"
-          alignItems="center"
-          justifyContent="space-between"
-          mb={2}
-          flexWrap="wrap"
-          gap={1}
-        >
-          <Box display="flex" alignItems="center" gap={1}>
-            <IconButton
-              size="small"
-              onClick={prevMonth}
-              sx={{
-                border: "1.5px solid #e5e7eb",
-                borderRadius: "6px",
-                width: 28,
-                height: 28,
-              }}
-            >
-              <ChevronLeftIcon sx={{ fontSize: 16 }} />
-            </IconButton>
-            <Typography
-              sx={{
-                fontWeight: 700,
-                fontSize: "0.85rem",
-                minWidth: 120,
-                textAlign: "center",
-              }}
-            >
-              {MONTHS[curMonth]} {curYear}
-            </Typography>
-            <IconButton
-              size="small"
-              onClick={nextMonth}
-              sx={{
-                border: "1.5px solid #e5e7eb",
-                borderRadius: "6px",
-                width: 28,
-                height: 28,
-              }}
-            >
-              <ChevronRightIcon sx={{ fontSize: 16 }} />
-            </IconButton>
-          </Box>
+    <Box>
+      {/* Calendar Header */}
+      <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", mb: 2.5 }}>
+        <Box sx={{ display: "flex", gap: 0.5 }}>
+          <IconButton size="small" onClick={() => setCurrentDate(new Date(year, month - 1, 1))}>
+            <NavigateBeforeIcon />
+          </IconButton>
+          <IconButton size="small" onClick={() => setCurrentDate(new Date(year, month + 1, 1))}>
+            <NavigateNextIcon />
+          </IconButton>
+          <Button size="small" startIcon={<TodayIcon />} onClick={() => setCurrentDate(new Date())} variant="outlined" sx={{ ml: 1 }}>
+            Today
+          </Button>
         </Box>
-
-        <Box
-          sx={{
-            border: "1.5px solid #e5e7eb",
-            borderRadius: "12px",
-            overflow: "hidden",
-            background: "#fff",
-          }}
-        >
-          <Box sx={{ display: "grid", gridTemplateColumns: "repeat(7,1fr)" }}>
-            {DAY_HEADERS.map((d) => (
-              <Box
-                key={d}
-                sx={{
-                  py: 0.8,
-                  textAlign: "center",
-                  fontSize: "0.6rem",
-                  fontWeight: 600,
-                  color: "#6b7280",
-                  borderBottom: "1.5px solid #e9eaec",
-                  background: "#fafafa",
-                }}
-              >
-                {d}
-              </Box>
-            ))}
-          </Box>
-
-          <Box sx={{ display: "grid", gridTemplateColumns: "repeat(7,1fr)" }}>
-            {weeks.flatMap((week, wi) =>
-              week.map(({ d, o, today }, ci) => {
-                const dots = !o && dotsByDay[d];
-                const isClick = !o && dots && dots.length > 0;
-                return (
-                  <Tooltip
-                    key={`${wi}-${ci}`}
-                    title={isClick ? `${dots.length} task(s)` : ""}
-                    arrow
-                  >
-                    <Box
-                      onClick={() => isClick && setModalDay(d)}
-                      sx={{
-                        minHeight: { xs: 56, md: 72 },
-                        p: 0.8,
-                        border: "0.5px solid #e9eaec",
-                        background: o ? "#f8f9fa" : "#fff",
-                        outline: today ? "1.5px solid #0d3d52" : "none",
-                        outlineOffset: "-1px",
-                        cursor: isClick ? "pointer" : "default",
-                        "&:hover": isClick ? { background: "#f0f9ff" } : {},
-                      }}
-                    >
-                      <Typography
-                        sx={{
-                          fontSize: "0.7rem",
-                          color: o ? "#c4c4c4" : today ? "#0d3d52" : "#374151",
-                          fontWeight: today ? 600 : 400,
-                          mb: 0.4,
-                        }}
-                      >
-                        {d}
-                      </Typography>
-                      {dots && (
-                        <Box display="flex" gap="2px" flexWrap="wrap">
-                          {dots.slice(0, 3).map((dot, i) => (
-                            <Box
-                              key={i}
-                              sx={{
-                                width: 6,
-                                height: 6,
-                                borderRadius: "50%",
-                                background: dot.color,
-                              }}
-                            />
-                          ))}
-                          {dots.length > 3 && (
-                            <Typography
-                              sx={{
-                                fontSize: "0.55rem",
-                                color: "#6b7280",
-                                lineHeight: "6px",
-                              }}
-                            >
-                              +{dots.length - 3}
-                            </Typography>
-                          )}
-                        </Box>
-                      )}
-                    </Box>
-                  </Tooltip>
-                );
-              }),
-            )}
-          </Box>
-        </Box>
-
-        <Box
-          sx={{ display: "flex", flexWrap: "wrap", gap: 1, mt: 1.5, px: 0.5 }}
-        >
-          {LEGEND.map(({ color, label }) => (
-            <Box key={label} display="flex" alignItems="center" gap={0.5}>
-              <Box
-                sx={{
-                  width: 7,
-                  height: 7,
-                  borderRadius: "50%",
-                  background: color,
-                }}
-              />
-              <Typography sx={{ fontSize: "0.8rem", color: "#374151", ml: 1 }}>
-                {label}
-              </Typography>
+        <Typography variant="h6">
+          {currentDate.toLocaleString("default", { month: "long", year: "numeric" })}
+        </Typography>
+        {/* Legend */}
+        <Box sx={{ display: "flex", gap: 2 }}>
+          {[
+            { label: "Critical", color: "#7f1d1d" },
+            { label: "High", color: "#b91c1c" },
+            { label: "Medium", color: "#b45309" },
+            { label: "Low", color: "#3b82f6" },
+            { label: "In Progress", color: "#10b981" },
+            { label: "Pending", color: "#9ca3af" },
+          ].map((l) => (
+            <Box key={l.label} sx={{ display: "flex", alignItems: "center", gap: 0.4 }}>
+              <CircleIcon sx={{ fontSize: 9, color: l.color }} />
+              <Typography variant="caption" sx={{ color: "#6b7280", fontSize: 11 }}>{l.label}</Typography>
             </Box>
           ))}
         </Box>
       </Box>
 
-      <DayModal
-        open={!!modalDay}
-        day={modalDay}
-        month={curMonth}
-        year={curYear}
-        tasks={modalTasks}
-        onClose={() => setModalDay(null)}
-        onStart={onStart}
-      />
-    </>
+      <Paper sx={{ borderRadius: 3, overflow: "hidden" }}>
+        {/* Weekday Row */}
+        <Grid container sx={{ bgcolor: "#f9fafb", borderBottom: "1px solid #e5e7eb" }}>
+          {["SUN","MON","TUE","WED","THU","FRI","SAT"].map((d) => (
+            <Grid key={d} item xs={12/7} sx={{ py: 1.5, textAlign: "center" }}>
+              <Typography variant="caption" fontWeight={700} sx={{ color: "#6b7280", letterSpacing: "0.05em" }}>{d}</Typography>
+            </Grid>
+          ))}
+        </Grid>
+
+        {/* Day Cells */}
+        <Grid container>
+          {cells.map((cell, idx) => {
+            const k = cell.date.toDateString();
+            const dayTasks = taskMap[k] || [];
+            const isToday = k === today;
+
+            return (
+              <Grid
+                key={idx}
+                item
+                xs={12/7}
+                onClick={(e) => handleCellClick(e, cell)}
+                sx={{
+                  minHeight: 90,
+                  p: 0.75,
+                  border: "1px solid #f0f0f0",
+                  bgcolor: isToday ? alpha("#0d3d52", 0.04) : cell.cur ? "white" : "#fafafa",
+                  cursor: dayTasks.length > 0 ? "pointer" : "default",
+                  "&:hover": dayTasks.length > 0 ? { bgcolor: alpha("#0d3d52", 0.06) } : {},
+                  outline: isToday ? `2px solid #0d3d52` : "none",
+                  outlineOffset: -2,
+                  position: "relative",
+                }}
+              >
+                <Box
+                  sx={{
+                    width: 26, height: 26, borderRadius: "50%",
+                    bgcolor: isToday ? "#0d3d52" : "transparent",
+                    display: "flex", alignItems: "center", justifyContent: "center", mb: 0.5,
+                  }}
+                >
+                  <Typography
+                    variant="caption"
+                    sx={{
+                      fontWeight: isToday ? 800 : 500,
+                      color: isToday ? "white" : cell.cur ? "#374151" : "#c0c0c0",
+                      fontSize: 12,
+                    }}
+                  >
+                    {cell.date.getDate()}
+                  </Typography>
+                </Box>
+                <Stack spacing={0.3}>
+                  {dayTasks.slice(0, 3).map((t, ti) => {
+                    const prColor = PRIORITY_DOT_COLOR[t.priority?.toLowerCase()] || "#9ca3af";
+                    const stKey = t.status?.toLowerCase();
+                    const dotColor = stKey === "in_progress" ? "#10b981" : stKey === "pending" ? "#9ca3af" : prColor;
+                    return (
+                      <Tooltip key={ti} title={t.checklists?.[0]?.name || t.assets?.[0]?.assetName || "Task"}>
+                        <Box sx={{ display: "flex", alignItems: "center", gap: 0.4 }}>
+                          <CircleIcon sx={{ fontSize: 8, color: dotColor, flexShrink: 0 }} />
+                          <Typography
+                            variant="caption"
+                            sx={{ fontSize: 10, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1, color: "#374151" }}
+                          >
+                            {(t.assets?.[0]?.assetName || t.checklists?.[0]?.name || "Task")?.slice(0, 14)}
+                          </Typography>
+                        </Box>
+                      </Tooltip>
+                    );
+                  })}
+                  {dayTasks.length > 3 && (
+                    <Typography variant="caption" sx={{ fontSize: 9, color: "#9ca3af", pl: 0.3 }}>
+                      +{dayTasks.length - 3} more
+                    </Typography>
+                  )}
+                </Stack>
+              </Grid>
+            );
+          })}
+        </Grid>
+      </Paper>
+
+      {/* Popover */}
+      <Popover
+        open={Boolean(popoverAnchor)}
+        anchorEl={popoverAnchor}
+        onClose={() => setPopoverAnchor(null)}
+        anchorOrigin={{ vertical: "bottom", horizontal: "left" }}
+        PaperProps={{ sx: { width: 300, borderRadius: 2.5, p: 1 } }}
+      >
+        <Typography variant="subtitle2" sx={{ px: 1.5, pt: 1.5, pb: 1, fontWeight: 700 }}>
+          {popoverDate?.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}
+        </Typography>
+        <Divider />
+        <List dense>
+          {popoverTasks.map((t) => {
+            const prKey = t.priority?.toLowerCase() || "medium";
+            const prCfg = PRIORITY_CFG[prKey] || PRIORITY_CFG.medium;
+            return (
+              <ListItem
+                key={t._id}
+                onClick={() => { setPopoverAnchor(null); onTaskClick(t._id); }}
+                sx={{ borderRadius: 1.5, cursor: "pointer", "&:hover": { bgcolor: alpha("#0d3d52", 0.05) }, mb: 0.5 }}
+              >
+                <ListItemText
+                  primary={
+                    <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                      <Typography variant="body2" fontWeight={600}>
+                        {t.assets?.[0]?.assetName || t.checklists?.[0]?.name || "—"}
+                      </Typography>
+                      <Chip label={prCfg.label.replace(" Priority","")} size="small"
+                        sx={{ bgcolor: prCfg.bg, color: prCfg.color, height: 18, fontSize: 10 }} />
+                    </Box>
+                  }
+                  secondary={
+                    <Typography variant="caption" color="text.secondary">
+                      {t.checklists?.[0]?.name || "—"}
+                    </Typography>
+                  }
+                />
+              </ListItem>
+            );
+          })}
+        </List>
+      </Popover>
+    </Box>
   );
 };
 
-/* ═══════════════════════ MAIN EXPORT ═══════════════════════════════════════ */
-export default function MyTasks() {
-  const navigate = useNavigate();
-  const [view, setView] = useState("list");
+// ─── Main ─────────────────────────────────────────────────────────────────────
+export default function MyTask() {
+  const navigate  = useNavigate();
+  const { user }  = useAuth();
+  const { fetchMyTasks, loading } = useTeamAssignment();
+  const isMobile  = useMediaQuery(theme.breakpoints.down("md"));
+  const mountedRef = useRef(true);
 
-  // FIXED: Properly navigate to task details page with the assignment ID
-  const handleStart = useCallback(
-    (task) => {
-      // Get the assignment ID from the task object
-      const assignmentId = task.id || task.assignmentId || task._id;
-      
-      if (!assignmentId) {
-        console.error("No assignment ID found in task:", task);
-        return;
-      }
-      
-      // Navigate to task details page with the assignment ID as URL parameter
-      navigate(`/team/task-details/${assignmentId}`);
-    },
-    [navigate],
-  );
+  const [viewMode, setViewMode] = useState("list");
+  const [tasks, setTasks]       = useState([]);
+  const [pagination, setPagination] = useState({ page: 1, limit: 10, total: 0, totalPages: 1 });
+  const [stats, setStats]       = useState(null);
+  const [filters, setFilters]   = useState({ status: "", priority: "", search: "", page: 1, limit: 20 });
+  const [snack, setSnack]       = useState({ open: false, msg: "", severity: "success" });
+
+  useEffect(() => { mountedRef.current = true; return () => { mountedRef.current = false; }; }, []);
+
+  const toast = useCallback((msg, severity = "success") => setSnack({ open: true, msg, severity }), []);
+
+  const loadTasks = useCallback(async () => {
+    const result = await fetchMyTasks(filters);
+    if (!mountedRef.current) return;
+    if (result.success) {
+      setTasks(result.tasks);
+      setPagination(result.pagination);
+      setStats(result.stats);
+    } else {
+      toast(result.error || "Failed to load tasks", "error");
+    }
+  }, [fetchMyTasks, filters, toast]);
+
+  useEffect(() => { loadTasks(); }, [loadTasks]);
+
+  const handleFilterChange = (key, value) =>
+    setFilters((prev) => ({ ...prev, [key]: value, page: 1 }));
+
+  const clearFilters = () =>
+    setFilters({ status: "", priority: "", search: "", page: 1, limit: 20 });
+
+  const hasFilters = !!(filters.status || filters.priority || filters.search);
+
+  const handleViewTask = (taskId) => {
+    if (!taskId || taskId === "undefined" || taskId === "null") {
+      toast("Invalid task ID", "error");
+      return;
+    }
+    navigate(`/team/task/${taskId}`);
+  };
+
+  const firstName = (user?.name || user?.fullName || "Team Member").split(" ")[0];
+
+  const statCards = [
+    { label: "Total Tasks",  value: stats?.total      || tasks.length, icon: AssignmentIcon,    color: "#0d3d52", bg: "#e6f3f8" },
+    { label: "Pending",      value: stats?.pending     || 0,           icon: PendingIcon,       color: "#b45309", bg: "#fef9ee" },
+    { label: "In Progress",  value: stats?.in_progress || 0,           icon: HourglassTopIcon,  color: "#1d4ed8", bg: "#eff6ff" },
+    { label: "Completed",    value: stats?.completed   || 0,           icon: DoneAllIcon,       color: "#047857", bg: "#ecfdf5" },
+    { label: "Overdue",      value: stats?.overdue     || 0,           icon: WarningIcon,       color: "#b91c1c", bg: "#fef2f2" },
+  ];
 
   return (
     <ThemeProvider theme={theme}>
-      <link
-        href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap"
-        rel="stylesheet"
-      />
-      <Box sx={{ minHeight: "100vh" }}>
-        {view === "list" ? (
-          <ListView view={view} setView={setView} onStart={handleStart} />
-        ) : (
-          <CalendarView view={view} setView={setView} onStart={handleStart} />
-        )}
+      <Box sx={{ minHeight: "100vh", bgcolor: "#f4f6f9" }}>
+        <Container maxWidth="xl" sx={{ py: { xs: 2, md: 4 } }}>
+
+          {/* Header */}
+          <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 2, mb: 3 }}>
+            <Box>
+              <Typography variant={isMobile ? "h6" : "h5"} color="#0d3d52">My Tasks</Typography>
+              <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+                Your assigned inspection tasks
+              </Typography>
+            </Box>
+            <Box sx={{ display: "flex", gap: 1, alignItems: "center" }}>
+              {/* View Toggle */}
+              <Paper sx={{ borderRadius: 2, overflow: "hidden", display: "flex", border: "1px solid rgba(0,0,0,0.08)" }}>
+                <Button
+                  size="small"
+                  onClick={() => setViewMode("list")}
+                  startIcon={<ViewListIcon fontSize="small" />}
+                  sx={{
+                    borderRadius: 0, px: 2, py: 1,
+                    bgcolor: viewMode === "list" ? "#0d3d52" : "transparent",
+                    color: viewMode === "list" ? "white" : "text.secondary",
+                    "&:hover": { bgcolor: viewMode === "list" ? "#0a2f40" : alpha("#0d3d52", 0.05) },
+                  }}
+                >
+                  List View
+                </Button>
+                <Box sx={{ width: 1, bgcolor: "rgba(0,0,0,0.08)" }} />
+                <Button
+                  size="small"
+                  onClick={() => setViewMode("calendar")}
+                  startIcon={<CalendarViewIcon fontSize="small" />}
+                  sx={{
+                    borderRadius: 0, px: 2, py: 1,
+                    bgcolor: viewMode === "calendar" ? "#0d3d52" : "transparent",
+                    color: viewMode === "calendar" ? "white" : "text.secondary",
+                    "&:hover": { bgcolor: viewMode === "calendar" ? "#0a2f40" : alpha("#0d3d52", 0.05) },
+                  }}
+                >
+                  Calendar View
+                </Button>
+              </Paper>
+              <Tooltip title="Refresh">
+                <IconButton
+                  size="small" onClick={loadTasks} disabled={loading}
+                  sx={{ border: "1px solid rgba(0,0,0,0.1)", borderRadius: 2, bgcolor: "white", width: 38, height: 38 }}
+                >
+                  {loading ? <CircularProgress size={16} /> : <RefreshIcon fontSize="small" />}
+                </IconButton>
+              </Tooltip>
+            </Box>
+          </Box>
+
+          {/* Filters Row */}
+          <Paper sx={{ mb: 2.5, p: 2, borderRadius: 3 }}>
+            <Stack direction={{ xs: "column", sm: "row" }} spacing={1.5} alignItems={{ sm: "center" }} flexWrap="wrap">
+              <TextField
+                size="small" placeholder="Search tasks…" value={filters.search}
+                onChange={(e) => handleFilterChange("search", e.target.value)}
+                sx={{ flex: 2, minWidth: 220 }}
+                InputProps={{
+                  startAdornment: <InputAdornment position="start"><SearchIcon sx={{ fontSize: 17, color: "#9ca3af" }} /></InputAdornment>,
+                  endAdornment: filters.search ? (
+                    <IconButton size="small" onClick={() => handleFilterChange("search", "")}>
+                      <ClearIcon sx={{ fontSize: 14 }} />
+                    </IconButton>
+                  ) : null,
+                }}
+              />
+              <FormControl size="small" sx={{ minWidth: 140 }}>
+                <Select value={filters.status} onChange={(e) => handleFilterChange("status", e.target.value)} displayEmpty>
+                  <MenuItem value="">All Tasks</MenuItem>
+                  {Object.entries(STATUS_CFG).map(([k, cfg]) => (
+                    <MenuItem key={k} value={k}>
+                      <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                        <Box sx={{ width: 7, height: 7, borderRadius: "50%", bgcolor: cfg.color }} />
+                        {cfg.label}
+                      </Box>
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+              <FormControl size="small" sx={{ minWidth: 130 }}>
+                <Select value={filters.priority} onChange={(e) => handleFilterChange("priority", e.target.value)} displayEmpty>
+                  <MenuItem value="">Priority</MenuItem>
+                  {Object.entries(PRIORITY_DOT_COLOR).map(([k, c]) => (
+                    <MenuItem key={k} value={k}>
+                      <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                        <Box sx={{ width: 7, height: 7, borderRadius: "50%", bgcolor: c }} />
+                        {k.charAt(0).toUpperCase() + k.slice(1)}
+                      </Box>
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+              {hasFilters && (
+                <Button size="small" onClick={clearFilters} startIcon={<ClearIcon />} sx={{ color: "#d94f4f" }}>
+                  Clear Filters
+                </Button>
+              )}
+            </Stack>
+          </Paper>
+
+          {/* Stat Cards */}
+          <Stack direction="row" spacing={2} sx={{ mb: 3, flexWrap: { xs: "wrap", md: "nowrap" } }}>
+            {statCards.map((c, i) => <StatCard key={i} {...c} />)}
+          </Stack>
+
+          {/* Content */}
+          {loading ? (
+            <Grid container spacing={2}>
+              {[...Array(6)].map((_, i) => (
+                <Grid key={i} item xs={12} sm={6} md={4}>
+                  <Skeleton variant="rectangular" height={220} sx={{ borderRadius: 3 }} />
+                </Grid>
+              ))}
+            </Grid>
+          ) : viewMode === "calendar" ? (
+            <CalendarView tasks={tasks} onTaskClick={handleViewTask} />
+          ) : tasks.length === 0 ? (
+            <Paper sx={{ p: 8, textAlign: "center", borderRadius: 3 }}>
+              <Fade in>
+                <Box>
+                  <Avatar sx={{ width: 72, height: 72, bgcolor: alpha("#0d3d52", 0.07), mx: "auto", mb: 2 }}>
+                    <AssignmentIcon sx={{ fontSize: 36, color: "#0d3d52", opacity: 0.4 }} />
+                  </Avatar>
+                  <Typography fontWeight={700} variant="h6" color="text.secondary">
+                    {hasFilters ? "No matching tasks" : "No tasks assigned"}
+                  </Typography>
+                  <Typography variant="body2" color="text.disabled" sx={{ mt: 0.5 }}>
+                    {hasFilters ? "Try adjusting your filters." : "You have no assigned tasks at the moment."}
+                  </Typography>
+                  {hasFilters && (
+                    <Button variant="outlined" size="small" sx={{ mt: 2 }} onClick={clearFilters}>Clear Filters</Button>
+                  )}
+                </Box>
+              </Fade>
+            </Paper>
+          ) : (
+            <>
+              <Grid container spacing={2.5}>
+                {tasks.map((task, idx) => (
+                  <Fade in timeout={100 + idx * 50} key={task._id}>
+                    <Grid item xs={12} sm={6} md={4}>
+                      <TaskCard task={task} onView={handleViewTask} />
+                    </Grid>
+                  </Fade>
+                ))}
+              </Grid>
+              {pagination.totalPages > 1 && (
+                <Box sx={{ display: "flex", justifyContent: "center", mt: 4 }}>
+                  <Pagination
+                    count={pagination.totalPages}
+                    page={filters.page}
+                    onChange={(_, p) => handleFilterChange("page", p)}
+                    color="primary"
+                  />
+                </Box>
+              )}
+            </>
+          )}
+        </Container>
+
+        <Snackbar
+          open={snack.open} autoHideDuration={4000}
+          onClose={() => setSnack((s) => ({ ...s, open: false }))}
+          anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
+        >
+          <Alert severity={snack.severity} onClose={() => setSnack((s) => ({ ...s, open: false }))} sx={{ borderRadius: 2 }}>
+            {snack.msg}
+          </Alert>
+        </Snackbar>
       </Box>
     </ThemeProvider>
   );

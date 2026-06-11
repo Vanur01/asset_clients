@@ -1,2404 +1,968 @@
-// pages/Reports.jsx - Complete Updated Report Page with Full API Integration
-
-import { useState, useEffect, useCallback, useMemo } from "react";
+// pages/ReportsDashboard.jsx — Redesigned
+import React, {
+  useState, useEffect, useCallback, useMemo, useRef,
+} from "react";
 import {
-  Box,
-  Typography,
-  Button,
-  Card,
-  MenuItem,
-  CardContent,
-  IconButton,
-  useMediaQuery,
-  Stack,
-  Grid,
-  Paper,
-  Chip,
-  CircularProgress,
-  Alert,
-  Snackbar,
-  ToggleButton,
-  ToggleButtonGroup,
-  TextField,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
-  FormControl,
-  InputLabel,
-  Select,
-  Tab,
-  Tabs,
-  Skeleton,
-  useTheme as useMuiTheme,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow,
-  TablePagination,
-  Avatar,
-  Divider,
+  Box, Typography, Button, Card, CardContent, Grid, Avatar,
+  Chip, IconButton, Tooltip, Divider, LinearProgress,
+  ToggleButton, ToggleButtonGroup, TextField, InputAdornment,
+  MenuItem, Tab, Tabs, Table, TableBody, TableCell, TableContainer,
+  TableHead, TableRow, TablePagination, Alert, Snackbar,
+  CircularProgress, Skeleton, Stack, alpha, Select, FormControl,
+  InputLabel, Dialog, DialogTitle, DialogContent, DialogActions,
+  Paper, useMediaQuery, useTheme,
 } from "@mui/material";
-import { alpha } from "@mui/material/styles";
 import {
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-  PieChart,
-  Pie,
-  Cell,
-  Legend,
-} from "recharts";
-import RefreshIcon from "@mui/icons-material/Refresh";
-import FilterListIcon from "@mui/icons-material/FilterList";
-import BusinessIcon from "@mui/icons-material/Business";
-import AssignmentIcon from "@mui/icons-material/Assignment";
-import PeopleOutlineIcon from "@mui/icons-material/PeopleOutline";
-import TrendingUpIcon from "@mui/icons-material/TrendingUp";
-import ShowChartIcon from "@mui/icons-material/ShowChart";
-import AssessmentIcon from "@mui/icons-material/Assessment";
-import ErrorOutlineIcon from "@mui/icons-material/ErrorOutline";
-import CloseIcon from "@mui/icons-material/Close";
-import TableChartIcon from "@mui/icons-material/TableChart";
-import InventoryIcon from "@mui/icons-material/Inventory";
-import GroupsIcon from "@mui/icons-material/Groups";
-import AttachMoneyIcon from "@mui/icons-material/AttachMoney";
-import DownloadIcon from "@mui/icons-material/Download";
-import PersonIcon from "@mui/icons-material/Person";
-import CheckCircleIcon from "@mui/icons-material/CheckCircle";
-import CancelIcon from "@mui/icons-material/Cancel";
-import PendingIcon from "@mui/icons-material/Pending";
-import { useReport } from "../context/ReportContext";
-import { useAuth } from "../context/AuthContexts";
+  Assessment as AssessmentIcon,
+  Download as DownloadIcon,
+  PictureAsPdf as PdfIcon,
+  TableChart as ExcelIcon,
+  Refresh as RefreshIcon,
+  FilterList as FilterIcon,
+  TrendingUp as TrendingUpIcon,
+  Business as BusinessIcon,
+  People as PeopleIcon,
+  Assignment as AssignmentIcon,
+  Inventory as InventoryIcon,
+  AttachMoney as MoneyIcon,
+  CheckCircle as CheckIcon,
+  Cancel as CancelIcon,
+  InsertChart as ChartIcon,
+  Search as SearchIcon,
+  Close as CloseIcon,
+  Warning as WarningIcon,
+  ErrorOutline as ErrorIcon,
+  TaskAlt as TaskAltIcon,
+  Analytics as AnalyticsIcon,
+} from "@mui/icons-material";
 import CurrencyRupeeIcon from "@mui/icons-material/CurrencyRupee";
+import {
+  AreaChart, Area, PieChart, Pie, Cell, XAxis, YAxis,
+  CartesianGrid, Tooltip as RTooltip, Legend, ResponsiveContainer,
+  BarChart, Bar,
+} from "recharts";
+import { useAuth }   from "../context/AuthContexts";
+import { useReport } from "../context/ReportContext";
+import jsPDF         from "jspdf";
+import "jspdf-autotable";
 import * as XLSX from "xlsx";
+import html2canvas   from "html2canvas";
 
-// ─────────────────────────────────────────────
-// Custom Color Palette
-// ─────────────────────────────────────────────
-const colors = {
-  primary: "#1a4a6b",
-  primaryLight: "#2e7d9e",
-  primaryDark: "#0d2f45",
-  secondary: "#64748b",
-  success: "#22c55e",
-  warning: "#f59e0b",
-  error: "#ef4444",
-  purple: "#a855f7",
-  orange: "#f97316",
-  background: "#f8fafc",
-  surface: "#ffffff",
-  border: "#e2e8f0",
-  textPrimary: "#0f172a",
-  textSecondary: "#64748b",
-  textDisabled: "#94a3b8",
+// ─── Design Tokens (same system as Dashboard) ─────────────────────────────────
+const T = {
+  ink:        "#0f1923",
+  inkMid:     "#2e3d4a",
+  inkLight:   "#516072",
+  surface:    "#f7f9fb",
+  surfaceMid: "#eef1f5",
+  white:      "#ffffff",
+  border:     "rgba(81,96,114,0.14)",
+  borderMid:  "rgba(81,96,114,0.28)",
+  teal:       "#007b6e",
+  tealLight:  "#e0f4f1",
+  amber:      "#d97706",
+  amberLight: "#fef3c7",
+  green:      "#16a34a",
+  greenLight: "#dcfce7",
+  red:        "#dc2626",
+  redLight:   "#fee2e2",
+  blue:       "#2563eb",
+  blueLight:  "#eff6ff",
 };
 
-// ─────────────────────────────────────────────
-// Excel Column Definitions per Report Type
-// ─────────────────────────────────────────────
+const CHART_COLORS = [T.teal, T.amber, "#4f46e5", "#0891b2", "#7c3aed", "#be123c"];
 
-// Client Report Columns (matches backend client_report response)
-const CLIENT_REPORT_COLUMNS = [
-  { key: "customerName", header: "Client Name" },
-  { key: "email", header: "Email" },
-  { key: "phone", header: "Phone" },
-  { key: "membershipPlan", header: "Membership Plan" },
-  { key: "status", header: "Status" },
-  { key: "daysRemaining", header: "Days Remaining" },
-  { key: "licenseLimit", header: "License Limit" },
-  { key: "usersUsed", header: "Users Used" },
-  { key: "usagePercentage", header: "Usage %" },
-  { key: "teamCount", header: "Team Members" },
-  { key: "assetCount", header: "Assets" },
-  { key: "inspectionCount", header: "Inspections" },
-  { key: "completionRate", header: "Completion Rate %" },
-  { key: "website", header: "Website" },
-  { key: "subscriptionStartDate", header: "Subscription Start" },
-  { key: "subscriptionEndDate", header: "Subscription End" },
-  { key: "createdAt", header: "Joined Date" },
-];
-
-// Team Report Columns (matches backend team_performance_report response)
-const TEAM_REPORT_COLUMNS = [
-  { key: "firstName", header: "First Name" },
-  { key: "lastName", header: "Last Name" },
-  { key: "email", header: "Email" },
-  { key: "teamRole", header: "Role" },
-  { key: "status", header: "Status" },
-  { key: "assignedCount", header: "Assigned Tasks" },
-  { key: "completedCount", header: "Completed Tasks" },
-  { key: "completionRate", header: "Completion Rate %" },
-  { key: "onTimeRate", header: "On-Time Rate %" },
-  { key: "approvalRate", header: "Approval Rate %" },
-  { key: "performanceScore", header: "Performance Score" },
-  { key: "qualityScore", header: "Quality Score" },
-  { key: "totalInspections", header: "Total Inspections" },
-  { key: "completedInspections", header: "Completed Inspections" },
-  { key: "approvedInspections", header: "Approved Inspections" },
-  { key: "averageCompletionTime", header: "Avg Completion (min)" },
-  { key: "joinDate", header: "Join Date" },
-];
-
-// Asset Report Columns
-const ASSET_REPORT_COLUMNS = [
-  { key: "assetName", header: "Asset Name" },
-  { key: "assetId", header: "Asset ID" },
-  { key: "tagNumber", header: "Tag Number" },
-  { key: "serialNumber", header: "Serial Number" },
-  { key: "assetCategory", header: "Category" },
-  { key: "status", header: "Status" },
-  { key: "assetCondition", header: "Condition" },
-  { key: "currentLocation", header: "Location" },
-  { key: "purchaseCost", header: "Purchase Cost" },
-  { key: "commissioningDate", header: "Commissioning Date" },
-  { key: "warrantyExpiry", header: "Warranty Expiry" },
-  { key: "healthScore", header: "Health Score" },
-  { key: "createdAt", header: "Created Date" },
-];
-
-// Checklist Report Columns
-const CHECKLIST_REPORT_COLUMNS = [
-  { key: "name", header: "Checklist Name" },
-  { key: "type", header: "Type" },
-  { key: "category", header: "Category" },
-  { key: "status", header: "Status" },
-  { key: "totalFields", header: "Total Fields" },
-  { key: "totalSections", header: "Total Sections" },
-  { key: "totalAssignments", header: "Total Assignments" },
-  { key: "completedAssignments", header: "Completed" },
-  { key: "completionRate", header: "Completion Rate %" },
-  { key: "approvalRate", header: "Approval Rate %" },
-  { key: "usageCount", header: "Usage Count" },
-  { key: "version", header: "Version" },
-  { key: "createdAt", header: "Created Date" },
-];
-
-// Assignment Report Columns
-const ASSIGNMENT_REPORT_COLUMNS = [
-  { key: "checklistName", header: "Checklist Name" },
-  { key: "assignedBy", header: "Assigned By" },
-  { key: "assignedToAdminName", header: "Assigned To Client" },
-  { key: "status", header: "Status" },
-  { key: "submissionStatus", header: "Submission Status" },
-  { key: "priority", header: "Priority" },
-  { key: "dueDate", header: "Due Date" },
-  { key: "startedAt", header: "Started At" },
-  { key: "submittedAt", header: "Submitted At" },
-  { key: "completionRate", header: "Completion Rate %" },
-  { key: "notes", header: "Notes" },
-  { key: "assignedAt", header: "Assigned Date" },
-];
-
-// Inspection Report Columns
-const INSPECTION_REPORT_COLUMNS = [
-  { key: "checklistName", header: "Checklist Name" },
-  { key: "customerName", header: "Client Name" },
-  { key: "status", header: "Status" },
-  { key: "submissionStatus", header: "Submission Status" },
-  { key: "priority", header: "Priority" },
-  { key: "dueDate", header: "Due Date" },
-  { key: "submittedAt", header: "Submitted At" },
-  { key: "completionRate", header: "Completion Rate %" },
-  { key: "overallRating", header: "Overall Rating" },
-  { key: "notes", header: "Notes" },
-];
-
-// Revenue Report Columns
-const REVENUE_REPORT_COLUMNS = [
-  { key: "customerName", header: "Client Name" },
-  { key: "plan", header: "Plan" },
-  { key: "monthlyRevenue", header: "Monthly Revenue (₹)" },
-  { key: "annualRevenue", header: "Annual Revenue (₹)" },
-  { key: "licensesUsed", header: "Licenses Used" },
-  { key: "licenseCapacity", header: "License Capacity" },
-  { key: "utilizationRate", header: "Utilization Rate %" },
-  { key: "subscriptionEndDate", header: "Subscription End" },
-  { key: "status", header: "Status" },
-];
-
-// Compliance Report Columns
-const COMPLIANCE_REPORT_COLUMNS = [
-  { key: "checklistName", header: "Checklist Name" },
-  { key: "customerName", header: "Client Name" },
-  { key: "status", header: "Status" },
-  { key: "submissionStatus", header: "Compliance Status" },
-  { key: "dueDate", header: "Due Date" },
-  { key: "submittedAt", header: "Submitted At" },
-  { key: "completionRate", header: "Completion Rate %" },
-];
-
-const REPORT_COLUMNS_MAP = {
-  clients: CLIENT_REPORT_COLUMNS,
-  team: TEAM_REPORT_COLUMNS,
-  assets: ASSET_REPORT_COLUMNS,
-  checklists: CHECKLIST_REPORT_COLUMNS,
-  assignments: ASSIGNMENT_REPORT_COLUMNS,
-  inspections: INSPECTION_REPORT_COLUMNS,
-  revenue: REVENUE_REPORT_COLUMNS,
-  compliance: COMPLIANCE_REPORT_COLUMNS,
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+const fmt = (n, currency = false) => {
+  if (n == null) return "—";
+  const v = Number(n);
+  return currency ? `₹${v.toLocaleString("en-IN")}` : v.toLocaleString("en-IN");
 };
 
-// ─────────────────────────────────────────────
-// Excel Export Function
-// ─────────────────────────────────────────────
-const exportToExcel = (data, reportType, dateRange, filters = {}, userRole) => {
-  if (!data || !data.data || data.data.length === 0) {
-    console.error("No data to export");
-    return false;
+// ─── PDF Export ───────────────────────────────────────────────────────────────
+const exportToPDF = async (data, reportType, summary) => {
+  const doc    = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
+  const stamp  = new Date().toLocaleString("en-IN", { dateStyle: "long", timeStyle: "short" });
+  const title  = `${reportType.charAt(0).toUpperCase() + reportType.slice(1)} Report`;
+
+  // Header
+  doc.setFillColor(15, 25, 35);
+  doc.rect(0, 0, 297, 22, "F");
+  doc.setTextColor(255, 255, 255);
+  doc.setFontSize(13);
+  doc.setFont("helvetica", "bold");
+  doc.text(title, 14, 13);
+  doc.setFontSize(8);
+  doc.setFont("helvetica", "normal");
+  doc.text(`Generated: ${stamp}`, 297 - 14, 13, { align: "right" });
+
+  let y = 30;
+
+  // Summary box
+  if (summary && Object.keys(summary).length > 0) {
+    doc.setTextColor(81, 96, 114);
+    doc.setFontSize(8);
+    doc.setFont("helvetica", "bold");
+    doc.text("SUMMARY", 14, y);
+    y += 4;
+
+    const pairs = Object.entries(summary).slice(0, 8);
+    pairs.forEach(([k, v], i) => {
+      const x = 14 + (i % 4) * 68;
+      const rowY = y + Math.floor(i / 4) * 14;
+      doc.setFillColor(247, 249, 251);
+      doc.roundedRect(x, rowY, 64, 12, 2, 2, "F");
+      doc.setTextColor(81, 96, 114);
+      doc.setFontSize(7);
+      doc.setFont("helvetica", "normal");
+      doc.text(k.replace(/([A-Z])/g, " $1").trim(), x + 3, rowY + 4.5);
+      doc.setTextColor(15, 25, 35);
+      doc.setFontSize(9);
+      doc.setFont("helvetica", "bold");
+      doc.text(String(v ?? "—"), x + 3, rowY + 9.5);
+    });
+    y += Math.ceil(pairs.length / 4) * 14 + 8;
   }
 
-  try {
-    const wb = XLSX.utils.book_new();
-    const columns = REPORT_COLUMNS_MAP[reportType] || [];
+  // Table
+  if (data?.length > 0) {
+    const columns = Object.keys(data[0]).slice(0, 10);
+    const headers = columns.map(c => c.replace(/([A-Z])/g, " $1").trim());
+    const rows    = data.map(row => columns.map(c => String(row[c] ?? "—").slice(0, 60)));
 
-    let headers, rows;
-
-    if (columns.length > 0) {
-      headers = columns.map((c) => c.header);
-      rows = data.data.map((row) =>
-        columns.map(({ key }) => {
-          const val = row[key];
-          if (val === null || val === undefined) return "—";
-          if (typeof val === "boolean") return val ? "Yes" : "No";
-          if (typeof val === "object") {
-            if (key === "address" && typeof val === "object") {
-              return [val.street, val.city, val.state, val.country]
-                .filter(Boolean)
-                .join(", ");
-            }
-            return JSON.stringify(val);
-          }
-          if (typeof val === "string" && /^\d{4}-\d{2}-\d{2}/.test(val)) {
-            return new Date(val).toLocaleDateString("en-IN");
-          }
-          return val;
-        }),
-      );
-    } else {
-      const keys = Object.keys(data.data[0]);
-      headers = keys.map((k) =>
-        k.replace(/_/g, " ").replace(/\b\w/g, (l) => l.toUpperCase()),
-      );
-      rows = data.data.map((row) =>
-        keys.map((k) => {
-          const val = row[k];
-          if (val === null || val === undefined) return "—";
-          if (typeof val === "boolean") return val ? "Yes" : "No";
-          if (typeof val === "object") return JSON.stringify(val);
-          return val;
-        }),
-      );
-    }
-
-    const reportLabel =
-      reportType.charAt(0).toUpperCase() + reportType.slice(1);
-    const metaRows = [
-      ["Report Type", reportLabel],
-      ["Generated By", userRole || "User"],
-      ["Generated Date", new Date().toLocaleString("en-IN")],
-      ["Date Range", dateRange ? `Last ${dateRange} days` : "Custom"],
-      ["Start Date", filters.startDate || "N/A"],
-      ["End Date", filters.endDate || "N/A"],
-      ["Total Records", data.data.length],
-      [],
-    ];
-
-    const allRows = [...metaRows, headers, ...rows];
-    const ws = XLSX.utils.aoa_to_sheet(allRows);
-    const colWidths = headers.map((h) => ({ wch: Math.max(h.length + 4, 18) }));
-    ws["!cols"] = colWidths;
-
-    const sheetName = reportLabel.substring(0, 31);
-    XLSX.utils.book_append_sheet(wb, ws, sheetName);
-    const fileName = `${reportType}_report_${Date.now()}.xlsx`;
-    XLSX.writeFile(wb, fileName);
-    return true;
-  } catch (error) {
-    console.error("Excel Export Error:", error);
-    return false;
+    doc.autoTable({
+      head:        [headers],
+      body:        rows,
+      startY:      y,
+      margin:      { left: 14, right: 14 },
+      styles:      { fontSize: 7.5, cellPadding: 3, textColor: [15, 25, 35] },
+      headStyles:  { fillColor: [15, 25, 35], textColor: [255, 255, 255], fontStyle: "bold" },
+      alternateRowStyles: { fillColor: [247, 249, 251] },
+      tableLineColor: [238, 241, 245],
+      tableLineWidth: 0.3,
+    });
   }
+
+  // Footer
+  const pageCount = doc.getNumberOfPages();
+  for (let i = 1; i <= pageCount; i++) {
+    doc.setPage(i);
+    doc.setTextColor(145, 168, 180);
+    doc.setFontSize(7);
+    doc.text("Confidential — Internal Use Only", 14, 205);
+    doc.text(`Page ${i} of ${pageCount}`, 297 - 14, 205, { align: "right" });
+  }
+
+  doc.save(`${reportType}_report_${Date.now()}.pdf`);
+  return true;
 };
 
-// ─── Loading Skeleton ─────────────────────────────────────────────
-const ReportSkeleton = () => {
-  const theme = useMuiTheme();
-  const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
-  return (
-    <Box sx={{ p: { xs: 1.5, sm: 2, md: 3 } }}>
-      <Box
-        sx={{
-          display: "flex",
-          justifyContent: "space-between",
-          mb: 3,
-          flexDirection: isMobile ? "column" : "row",
-          gap: 2,
-        }}
-      >
-        <Box>
-          <Skeleton variant="text" width={200} height={32} />
-          <Skeleton variant="text" width={150} height={20} />
-        </Box>
-        <Box sx={{ display: "flex", gap: 1 }}>
-          <Skeleton variant="rounded" width={120} height={36} />
-          <Skeleton variant="circular" width={36} height={36} />
-          <Skeleton variant="circular" width={36} height={36} />
-          <Skeleton variant="rounded" width={80} height={36} />
-        </Box>
-      </Box>
-      <Box
-        sx={{
-          display: "grid",
-          gridTemplateColumns: isMobile ? "repeat(2, 1fr)" : "repeat(4, 1fr)",
-          gap: 2,
-          mb: 3,
-        }}
-      >
-        {[1, 2, 3, 4].map((i) => (
-          <Skeleton
-            key={i}
-            variant="rounded"
-            height={isMobile ? 100 : 120}
-            sx={{ borderRadius: 3 }}
-          />
-        ))}
-      </Box>
-      <Skeleton variant="rounded" height={40} sx={{ mb: 3 }} />
-      <Box
-        sx={{
-          display: "grid",
-          gridTemplateColumns: isMobile ? "1fr" : "7fr 5fr",
-          gap: 2,
-        }}
-      >
-        <Skeleton variant="rounded" height={300} sx={{ borderRadius: 3 }} />
-        <Skeleton variant="rounded" height={300} sx={{ borderRadius: 3 }} />
-      </Box>
+// ─── Excel Export ─────────────────────────────────────────────────────────────
+const exportToExcel = (data, reportType, summary) => {
+  const wb = XLSX.utils.book_new();
+
+  if (data?.length > 0) {
+    const ws = XLSX.utils.json_to_sheet(data);
+    XLSX.utils.book_append_sheet(wb, ws, "Data");
+  }
+
+  if (summary && Object.keys(summary).length > 0) {
+    const summaryRows = Object.entries(summary).map(([k, v]) => ({ Metric: k, Value: v }));
+    const ws2 = XLSX.utils.json_to_sheet(summaryRows);
+    XLSX.utils.book_append_sheet(wb, ws2, "Summary");
+  }
+
+  XLSX.writeFile(wb, `${reportType}_report_${Date.now()}.xlsx`);
+};
+
+// ─── UI Primitives ────────────────────────────────────────────────────────────
+const MetricTile = ({ icon: Icon, label, value, color, loading }) => {
+  if (loading) return (
+    <Box sx={{ p: 2, borderRadius: "12px", bgcolor: T.surfaceMid }}>
+      <Skeleton variant="circular" width={36} height={36} sx={{ mb: 1 }} />
+      <Skeleton width="60%" height={16} />
+      <Skeleton width="40%" height={28} />
     </Box>
   );
-};
-
-// ─── Error State ─────────────────────────────────────────────
-const ErrorState = ({ message, onRetry }) => (
-  <Box
-    sx={{
-      display: "flex",
-      flexDirection: "column",
-      alignItems: "center",
-      justifyContent: "center",
-      py: { xs: 6, sm: 8 },
-      px: 2,
-    }}
-  >
-    <ErrorOutlineIcon
-      sx={{ fontSize: { xs: 48, sm: 64 }, color: colors.error, mb: 2 }}
-    />
-    <Typography
-      variant="h6"
-      sx={{
-        fontWeight: 600,
-        color: colors.textPrimary,
-        mb: 1,
-        textAlign: "center",
-      }}
-    >
-      Failed to Load Reports
-    </Typography>
-    <Typography
-      variant="body2"
-      sx={{
-        color: colors.textSecondary,
-        mb: 3,
-        textAlign: "center",
-        maxWidth: 400,
-      }}
-    >
-      {message || "An error occurred while loading reports. Please try again."}
-    </Typography>
-    <Button
-      variant="contained"
-      onClick={onRetry}
-      startIcon={<RefreshIcon />}
-      sx={{ bgcolor: colors.primary }}
-    >
-      Retry
-    </Button>
-  </Box>
-);
-
-// ─── Empty State ─────────────────────────────────────────────
-const EmptyState = ({ icon: Icon, title, description }) => (
-  <Box
-    sx={{
-      display: "flex",
-      flexDirection: "column",
-      alignItems: "center",
-      justifyContent: "center",
-      py: { xs: 4, sm: 6 },
-      px: 2,
-      textAlign: "center",
-    }}
-  >
-    {Icon && (
-      <Icon
-        sx={{ fontSize: { xs: 40, sm: 48 }, color: colors.textDisabled, mb: 2 }}
-      />
-    )}
-    <Typography
-      variant="subtitle1"
-      sx={{ fontWeight: 600, color: colors.textPrimary, mb: 1 }}
-    >
-      {title}
-    </Typography>
-    <Typography
-      variant="caption"
-      sx={{ color: colors.textSecondary, maxWidth: 300 }}
-    >
-      {description}
-    </Typography>
-  </Box>
-);
-
-// ─── Custom Tooltip ─────────────────────────────────────────────
-const CustomTooltip = ({
-  active,
-  payload,
-  label,
-  valuePrefix = "",
-  valueSuffix = "",
-}) => {
-  if (active && payload && payload.length) {
-    return (
-      <Box
-        sx={{
-          bgcolor: colors.surface,
-          border: `1px solid ${colors.border}`,
-          borderRadius: 2,
-          p: 1.5,
-          boxShadow: "0 4px 6px rgba(0,0,0,0.07)",
-        }}
-      >
-        <Typography
-          variant="caption"
-          sx={{ color: colors.textSecondary, mb: 0.5, display: "block" }}
-        >
-          {label || payload[0]?.name}
-        </Typography>
-        <Typography
-          variant="subtitle2"
-          sx={{ fontWeight: 700, color: colors.textPrimary }}
-        >
-          {valuePrefix}
-          {payload[0]?.value?.toLocaleString()}
-          {valueSuffix}
-        </Typography>
-      </Box>
-    );
-  }
-  return null;
-};
-
-// ─── Stat Card ─────────────────────────────────────────────
-function StatCard({ icon, label, value, sub, bg, loading }) {
-  if (loading) {
-    return (
-      <Box sx={{ borderRadius: 3, background: bg, p: { xs: 1.5, sm: 2 } }}>
-        <Skeleton
-          variant="circular"
-          width={24}
-          height={24}
-          sx={{ bgcolor: "rgba(255,255,255,0.2)", mb: 1 }}
-        />
-        <Skeleton
-          variant="text"
-          width="60%"
-          sx={{ bgcolor: "rgba(255,255,255,0.2)" }}
-        />
-        <Skeleton
-          variant="text"
-          width="40%"
-          height={30}
-          sx={{ bgcolor: "rgba(255,255,255,0.2)" }}
-        />
-      </Box>
-    );
-  }
   return (
-    <Box
-      sx={{
-        borderRadius: { xs: 2, sm: 3 },
-        background: bg,
-        p: { xs: 1.5, sm: 2, md: 2.5 },
-        color: "#fff",
-        transition: "transform 0.2s",
-        cursor: "default",
-        "&:hover": {
-          transform: "translateY(-2px)",
-          boxShadow: "0 8px 16px rgba(0,0,0,0.1)",
-        },
-      }}
-    >
-      <Box
-        sx={{
-          display: "flex",
-          alignItems: "center",
-          gap: { xs: 0.5, sm: 0.75 },
-          mb: { xs: 0.75, sm: 1 },
-        }}
-      >
-        {icon}
-        <Typography
-          variant="caption"
-          sx={{
-            color: "rgba(255,255,255,0.85)",
-            fontWeight: 500,
-            fontSize: { xs: "0.6rem", sm: "0.65rem", md: "0.7rem" },
-          }}
-        >
-          {label}
-        </Typography>
+    <Box sx={{ p: 2, borderRadius: "12px", bgcolor: T.surfaceMid }}>
+      <Box sx={{ width: 36, height: 36, borderRadius: "9px", bgcolor: alpha(color || T.teal, 0.12), display: "flex", alignItems: "center", justifyContent: "center", mb: 1 }}>
+        <Icon sx={{ fontSize: 18, color: color || T.teal }} />
       </Box>
-      <Typography
-        variant="h5"
-        fontWeight={800}
-        sx={{
-          color: "#fff",
-          lineHeight: 1.1,
-          mb: 0.5,
-          fontSize: { xs: "1rem", sm: "1.125rem", md: "1.25rem" },
-        }}
-      >
-        {value ?? 0}
+      <Typography sx={{ fontSize: "0.66rem", fontWeight: 600, color: T.inkLight, textTransform: "uppercase", letterSpacing: "0.05em", mb: 0.4 }}>
+        {label}
       </Typography>
-      <Typography
-        variant="caption"
-        sx={{
-          color: "rgba(255,255,255,0.75)",
-          fontSize: { xs: "0.55rem", sm: "0.6rem" },
-        }}
-      >
-        {sub}
+      <Typography sx={{ fontSize: "1.4rem", fontWeight: 700, color: T.ink, lineHeight: 1 }}>
+        {value ?? "—"}
       </Typography>
     </Box>
   );
-}
+};
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Role-specific Table Components
-// ─────────────────────────────────────────────────────────────────────────────
+const EmptyState = ({ icon: Icon, title, desc }) => (
+  <Box sx={{ textAlign: "center", py: 7 }}>
+    <Icon sx={{ fontSize: 48, color: T.surfaceMid, mb: 1.5 }} />
+    <Typography sx={{ fontWeight: 600, color: T.inkMid, fontSize: "0.88rem", mb: 0.5 }}>{title}</Typography>
+    <Typography sx={{ fontSize: "0.76rem", color: T.inkLight }}>{desc}</Typography>
+  </Box>
+);
 
-// Client Report Table (Super Admin view)
-function ClientReportTable({ data }) {
+const StatusChip = ({ status }) => {
+  const map = {
+    active:   { bg: T.greenLight, color: T.green },
+    inactive: { bg: T.redLight,   color: T.red   },
+    suspended:{ bg: T.amberLight, color: T.amber  },
+    good:     { bg: T.greenLight, color: T.green },
+    fair:     { bg: T.amberLight, color: T.amber  },
+    poor:     { bg: T.redLight,   color: T.red   },
+    excellent:{ bg: T.tealLight,  color: T.teal  },
+    critical: { bg: T.redLight,   color: T.red   },
+  };
+  const s = map[(status || "").toLowerCase()] || { bg: T.surfaceMid, color: T.inkLight };
+  return (
+    <Chip label={status || "—"} size="small"
+      sx={{ height: 20, fontSize: "0.6rem", fontWeight: 600, bgcolor: s.bg, color: s.color }} />
+  );
+};
+
+const ColHead = ({ children }) => (
+  <TableCell sx={{ fontWeight: 700, fontSize: "0.68rem", color: T.inkLight, bgcolor: T.surface, borderBottom: `1px solid ${T.border}`, whiteSpace: "nowrap" }}>
+    {children}
+  </TableCell>
+);
+const Cell$ = ({ children, bold }) => (
+  <TableCell sx={{ fontSize: bold ? "0.74rem" : "0.7rem", fontWeight: bold ? 600 : 400, color: bold ? T.ink : T.inkLight, borderBottom: `1px solid ${T.border}` }}>
+    {children}
+  </TableCell>
+);
+
+// ─── Report Tables ────────────────────────────────────────────────────────────
+const ClientReportTable = ({ data }) => {
   const [page, setPage] = useState(0);
-  const [rowsPerPage, setRowsPerPage] = useState(10);
+  const [rpp,  setRpp]  = useState(10);
+  const [q, setQ]       = useState("");
 
-  if (!data || !data.data || data.data.length === 0) {
-    return (
-      <EmptyState
-        icon={BusinessIcon}
-        title="No Client Data"
-        description="No client records found for the selected filters"
-      />
-    );
-  }
+  if (!data?.length) return <EmptyState icon={BusinessIcon} title="No clients found" desc="Adjust filters and generate the report" />;
 
-  const rows = data.data;
-  const paginated = rows.slice(
-    page * rowsPerPage,
-    page * rowsPerPage + rowsPerPage,
+  const filtered = data.filter(r =>
+    r.customerName?.toLowerCase().includes(q.toLowerCase()) ||
+    r.email?.toLowerCase().includes(q.toLowerCase())
   );
-
-  const statusColor = (s) => {
-    if (!s) return colors.textDisabled;
-    const sl = s.toLowerCase();
-    if (sl === "active") return colors.success;
-    if (sl === "inactive" || sl === "suspended") return colors.error;
-    if (sl === "trial") return colors.warning;
-    return colors.textSecondary;
-  };
-
-  const planColor = (plan) => {
-    if (!plan) return alpha(colors.textDisabled, 0.15);
-    const p = plan.toLowerCase();
-    if (p === "enterprise") return alpha(colors.purple, 0.12);
-    if (p === "premium") return alpha(colors.primary, 0.12);
-    if (p === "standard") return alpha(colors.primaryLight, 0.12);
-    return alpha(colors.textDisabled, 0.1);
-  };
+  const paged = filtered.slice(page * rpp, page * rpp + rpp);
 
   return (
     <Box>
-      <TableContainer sx={{ maxHeight: 480, overflowX: "auto" }}>
+      <Box sx={{ display: "flex", justifyContent: "space-between", mb: 2, flexWrap: "wrap", gap: 1 }}>
+        <TextField
+          size="small" placeholder="Search clients…" value={q}
+          onChange={e => { setQ(e.target.value); setPage(0); }}
+          sx={{ width: 240 }}
+          InputProps={{ startAdornment: <InputAdornment position="start"><SearchIcon sx={{ fontSize: 16, color: T.inkLight }} /></InputAdornment> }}
+        />
+        <Typography sx={{ fontSize: "0.7rem", color: T.inkLight, alignSelf: "center" }}>
+          {filtered.length} result{filtered.length !== 1 ? "s" : ""}
+        </Typography>
+      </Box>
+      <TableContainer sx={{ maxHeight: 480 }}>
         <Table stickyHeader size="small">
           <TableHead>
             <TableRow>
-              {CLIENT_REPORT_COLUMNS.map((col) => (
-                <TableCell
-                  key={col.key}
-                  sx={{
-                    bgcolor: alpha(colors.primary, 0.05),
-                    fontWeight: 700,
-                    fontSize: "0.7rem",
-                    color: colors.textPrimary,
-                    whiteSpace: "nowrap",
-                    borderBottom: `2px solid ${colors.border}`,
-                  }}
-                >
-                  {col.header}
-                </TableCell>
-              ))}
+              {["Client", "Contact", "Plan", "Status", "Team", "Assets", "Completion %", "Subscription ends"].map(h => <ColHead key={h}>{h}</ColHead>)}
             </TableRow>
           </TableHead>
           <TableBody>
-            {paginated.map((row, idx) => (
-              <TableRow
-                key={idx}
-                hover
-                sx={{ "&:hover": { bgcolor: alpha(colors.primary, 0.02) } }}
-              >
-                <TableCell
-                  sx={{
-                    fontSize: "0.72rem",
-                    fontWeight: 600,
-                    color: colors.textPrimary,
-                    whiteSpace: "nowrap",
-                  }}
-                >
+            {paged.map((row, i) => (
+              <TableRow key={i} hover sx={{ "&:hover": { bgcolor: T.surface } }}>
+                <TableCell sx={{ borderBottom: `1px solid ${T.border}` }}>
                   <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                    <Avatar
-                      sx={{
-                        width: 24,
-                        height: 24,
-                        fontSize: "0.6rem",
-                        bgcolor: colors.primary,
-                      }}
-                    >
-                      {(row.customerName || "?")[0]?.toUpperCase()}
+                    <Avatar sx={{ width: 28, height: 28, bgcolor: T.teal, fontSize: "0.7rem" }}>
+                      {row.customerName?.[0]?.toUpperCase()}
                     </Avatar>
-                    {row.customerName || "—"}
-                  </Box>
-                </TableCell>
-                <TableCell
-                  sx={{ fontSize: "0.7rem", color: colors.textSecondary }}
-                >
-                  {row.email || "—"}
-                </TableCell>
-                <TableCell
-                  sx={{ fontSize: "0.7rem", color: colors.textSecondary }}
-                >
-                  {row.phone || "—"}
-                </TableCell>
-                <TableCell>
-                  <Chip
-                    label={row.membershipPlan || "—"}
-                    size="small"
-                    sx={{
-                      bgcolor: planColor(row.membershipPlan),
-                      fontSize: "0.62rem",
-                      height: 20,
-                      fontWeight: 600,
-                    }}
-                  />
-                </TableCell>
-                <TableCell>
-                  <Chip
-                    label={row.status || "Active"}
-                    size="small"
-                    sx={{
-                      bgcolor: alpha(statusColor(row.status), 0.12),
-                      color: statusColor(row.status),
-                      fontSize: "0.62rem",
-                      height: 20,
-                      fontWeight: 600,
-                    }}
-                  />
-                </TableCell>
-                <TableCell
-                  sx={{ fontSize: "0.7rem", color: colors.textSecondary }}
-                >
-                  {row.daysRemaining ?? "—"}
-                </TableCell>
-                <TableCell
-                  sx={{ fontSize: "0.7rem", color: colors.textSecondary }}
-                >
-                  {row.licenseLimit ?? "—"}
-                </TableCell>
-                <TableCell
-                  sx={{ fontSize: "0.7rem", color: colors.textSecondary }}
-                >
-                  {row.usersUsed ?? "—"}
-                </TableCell>
-                <TableCell>
-                  <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
-                    <Box
-                      sx={{
-                        width: 50,
-                        height: 6,
-                        borderRadius: 3,
-                        bgcolor: colors.border,
-                        overflow: "hidden",
-                      }}
-                    >
-                      <Box
-                        sx={{
-                          width: `${Math.min(row.usagePercentage || 0, 100)}%`,
-                          height: "100%",
-                          bgcolor:
-                            (row.usagePercentage || 0) > 80
-                              ? colors.error
-                              : colors.success,
-                          borderRadius: 3,
-                        }}
-                      />
-                    </Box>
-                    <Typography
-                      sx={{ fontSize: "0.65rem", color: colors.textSecondary }}
-                    >
-                      {row.usagePercentage || 0}%
+                    <Typography sx={{ fontWeight: 600, fontSize: "0.74rem", color: T.ink }}>
+                      {row.customerName}
                     </Typography>
                   </Box>
                 </TableCell>
-                <TableCell
-                  sx={{ fontSize: "0.7rem", color: colors.textSecondary }}
-                >
-                  {row.teamCount ?? 0}
+                <TableCell sx={{ borderBottom: `1px solid ${T.border}` }}>
+                  <Typography sx={{ fontSize: "0.68rem", color: T.inkMid }}>{row.email}</Typography>
+                  <Typography sx={{ fontSize: "0.63rem", color: T.inkLight }}>{row.phone}</Typography>
                 </TableCell>
-                <TableCell
-                  sx={{ fontSize: "0.7rem", color: colors.textSecondary }}
-                >
-                  {row.assetCount ?? 0}
+                <TableCell sx={{ borderBottom: `1px solid ${T.border}` }}>
+                  <Chip label={row.membershipPlan || "—"} size="small"
+                    sx={{ height: 18, fontSize: "0.6rem", fontWeight: 600, bgcolor: T.tealLight, color: T.teal }} />
                 </TableCell>
-                <TableCell
-                  sx={{ fontSize: "0.7rem", color: colors.textSecondary }}
-                >
-                  {row.inspectionCount ?? 0}
+                <Cell$><StatusChip status={row.status} /></Cell$>
+                <Cell$>{row.teamCount ?? 0}</Cell$>
+                <Cell$>{row.assetCount ?? 0}</Cell$>
+                <TableCell sx={{ borderBottom: `1px solid ${T.border}` }}>
+                  <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                    <LinearProgress variant="determinate" value={row.completionRate || 0}
+                      sx={{ width: 56, height: 4, borderRadius: 4, bgcolor: T.surfaceMid, "& .MuiLinearProgress-bar": { bgcolor: T.teal } }} />
+                    <Typography sx={{ fontSize: "0.65rem", fontWeight: 700, color: T.inkMid }}>
+                      {(row.completionRate || 0).toFixed(0)}%
+                    </Typography>
+                  </Box>
                 </TableCell>
-                <TableCell>
-                  <Chip
-                    label={`${row.completionRate || 0}%`}
-                    size="small"
-                    sx={{
-                      bgcolor: alpha(colors.success, 0.1),
-                      color: colors.success,
-                      fontSize: "0.62rem",
-                      height: 20,
-                    }}
-                  />
-                </TableCell>
-                <TableCell
-                  sx={{
-                    fontSize: "0.7rem",
-                    color: colors.textSecondary,
-                    maxWidth: 120,
-                    overflow: "hidden",
-                    textOverflow: "ellipsis",
-                    whiteSpace: "nowrap",
-                  }}
-                >
-                  {row.website || "—"}
-                </TableCell>
-                <TableCell
-                  sx={{
-                    fontSize: "0.7rem",
-                    color: colors.textSecondary,
-                    whiteSpace: "nowrap",
-                  }}
-                >
-                  {row.subscriptionStartDate
-                    ? new Date(row.subscriptionStartDate).toLocaleDateString(
-                        "en-IN",
-                      )
-                    : "—"}
-                </TableCell>
-                <TableCell
-                  sx={{
-                    fontSize: "0.7rem",
-                    color: colors.textSecondary,
-                    whiteSpace: "nowrap",
-                  }}
-                >
+                <Cell$>
                   {row.subscriptionEndDate
-                    ? new Date(row.subscriptionEndDate).toLocaleDateString(
-                        "en-IN",
-                      )
-                    : "—"}
-                </TableCell>
-                <TableCell
-                  sx={{
-                    fontSize: "0.7rem",
-                    color: colors.textSecondary,
-                    whiteSpace: "nowrap",
-                  }}
-                >
-                  {row.createdAt
-                    ? new Date(row.createdAt).toLocaleDateString("en-IN")
-                    : "—"}
-                </TableCell>
+                    ? new Date(row.subscriptionEndDate).toLocaleDateString("en-IN")
+                    : "N/A"}
+                </Cell$>
               </TableRow>
             ))}
           </TableBody>
         </Table>
       </TableContainer>
-      <TablePagination
-        component="div"
-        count={rows.length}
-        page={page}
-        onPageChange={(_, p) => setPage(p)}
-        rowsPerPage={rowsPerPage}
-        onRowsPerPageChange={(e) => {
-          setRowsPerPage(+e.target.value);
-          setPage(0);
-        }}
+      <TablePagination component="div" count={filtered.length} page={page}
+        onPageChange={(_, p) => setPage(p)} rowsPerPage={rpp}
+        onRowsPerPageChange={e => { setRpp(+e.target.value); setPage(0); }}
         rowsPerPageOptions={[5, 10, 25, 50]}
-      />
+        sx={{ fontSize: "0.72rem", "& .MuiTablePagination-selectLabel, & .MuiTablePagination-displayedRows": { fontSize: "0.72rem" } }} />
     </Box>
   );
-}
+};
 
-// Team Report Table (Admin view)
-function TeamReportTable({ data }) {
-  const [page, setPage] = useState(0);
-  const [rowsPerPage, setRowsPerPage] = useState(10);
+const TeamReportTable = ({ data }) => {
+  const [page, setPage]     = useState(0);
+  const [rpp,  setRpp]      = useState(10);
+  const [roleFilter, setRole] = useState("all");
 
-  if (!data || !data.data || data.data.length === 0) {
-    return (
-      <EmptyState
-        icon={GroupsIcon}
-        title="No Team Data"
-        description="No team member records found for the selected filters"
-      />
-    );
-  }
+  if (!data?.length) return <EmptyState icon={PeopleIcon} title="No team members found" desc="Adjust filters and regenerate" />;
 
-  const rows = data.data;
-  const paginated = rows.slice(
-    page * rowsPerPage,
-    page * rowsPerPage + rowsPerPage,
-  );
-
-  const statusIcon = (s) => {
-    if (!s)
-      return <PendingIcon sx={{ fontSize: 14, color: colors.textDisabled }} />;
-    if (s.toLowerCase() === "active")
-      return <CheckCircleIcon sx={{ fontSize: 14, color: colors.success }} />;
-    if (s.toLowerCase() === "inactive")
-      return <CancelIcon sx={{ fontSize: 14, color: colors.error }} />;
-    return <PendingIcon sx={{ fontSize: 14, color: colors.warning }} />;
-  };
-
-  const roleLabel = (role) => {
-    const map = {
-      inspector: "Inspector",
-      senior_inspector: "Sr. Inspector",
-      lead_inspector: "Lead Inspector",
-      supervisor: "Supervisor",
-      manager: "Manager",
-    };
-    return map[role] || role || "—";
-  };
+  const filtered = roleFilter === "all" ? data : data.filter(r => r.teamRole === roleFilter);
+  const paged    = filtered.slice(page * rpp, page * rpp + rpp);
+  const perfColor = v => v >= 80 ? T.green : v >= 60 ? T.amber : T.red;
 
   return (
     <Box>
-      <TableContainer sx={{ maxHeight: 480, overflowX: "auto" }}>
+      <Box sx={{ display: "flex", justifyContent: "space-between", mb: 2, flexWrap: "wrap", gap: 1 }}>
+        <FormControl size="small" sx={{ width: 170 }}>
+          <InputLabel sx={{ fontSize: "0.8rem" }}>Role</InputLabel>
+          <Select value={roleFilter} onChange={e => { setRole(e.target.value); setPage(0); }} label="Role" sx={{ fontSize: "0.8rem" }}>
+            <MenuItem value="all" sx={{ fontSize: "0.8rem" }}>All roles</MenuItem>
+            {["inspector", "senior_inspector", "lead_inspector", "supervisor"].map(r => (
+              <MenuItem key={r} value={r} sx={{ fontSize: "0.8rem" }}>{r.replace(/_/g, " ")}</MenuItem>
+            ))}
+          </Select>
+        </FormControl>
+        <Typography sx={{ fontSize: "0.7rem", color: T.inkLight, alignSelf: "center" }}>
+          {filtered.length} member{filtered.length !== 1 ? "s" : ""}
+        </Typography>
+      </Box>
+      <TableContainer sx={{ maxHeight: 480 }}>
         <Table stickyHeader size="small">
           <TableHead>
             <TableRow>
-              {TEAM_REPORT_COLUMNS.map((col) => (
-                <TableCell
-                  key={col.key}
-                  sx={{
-                    bgcolor: alpha(colors.primary, 0.05),
-                    fontWeight: 700,
-                    fontSize: "0.7rem",
-                    color: colors.textPrimary,
-                    whiteSpace: "nowrap",
-                    borderBottom: `2px solid ${colors.border}`,
-                  }}
-                >
-                  {col.header}
-                </TableCell>
-              ))}
+              {["Member", "Role", "Status", "Tasks assigned", "Completion", "On-time", "Score"].map(h => <ColHead key={h}>{h}</ColHead>)}
             </TableRow>
           </TableHead>
           <TableBody>
-            {paginated.map((row, idx) => (
-              <TableRow
-                key={idx}
-                hover
-                sx={{ "&:hover": { bgcolor: alpha(colors.primary, 0.02) } }}
-              >
-                <TableCell
-                  sx={{
-                    fontSize: "0.72rem",
-                    fontWeight: 600,
-                    color: colors.textPrimary,
-                    whiteSpace: "nowrap",
-                  }}
-                >
+            {paged.map((row, i) => (
+              <TableRow key={i} hover sx={{ "&:hover": { bgcolor: T.surface } }}>
+                <TableCell sx={{ borderBottom: `1px solid ${T.border}` }}>
                   <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                    <Avatar
-                      sx={{
-                        width: 24,
-                        height: 24,
-                        fontSize: "0.6rem",
-                        bgcolor: colors.purple,
-                      }}
-                    >
-                      {(row.firstName || "?")[0]?.toUpperCase()}
+                    <Avatar sx={{ width: 28, height: 28, bgcolor: T.inkLight, fontSize: "0.7rem" }}>
+                      {row.firstName?.[0]}
                     </Avatar>
-                    {`${row.firstName || ""} ${row.lastName || ""}`.trim() ||
-                      "—"}
+                    <Box>
+                      <Typography sx={{ fontWeight: 600, fontSize: "0.74rem", color: T.ink }}>
+                        {`${row.firstName || ""} ${row.lastName || ""}`.trim()}
+                      </Typography>
+                      <Typography sx={{ fontSize: "0.63rem", color: T.inkLight }}>{row.email}</Typography>
+                    </Box>
                   </Box>
                 </TableCell>
-                <TableCell
-                  sx={{ fontSize: "0.7rem", color: colors.textSecondary }}
-                >
-                  {row.lastName || "—"}
-                </TableCell>
-                <TableCell
-                  sx={{ fontSize: "0.7rem", color: colors.textSecondary }}
-                >
-                  {row.email || "—"}
-                </TableCell>
-                <TableCell>
-                  <Chip
-                    label={roleLabel(row.teamRole)}
-                    size="small"
-                    sx={{
-                      bgcolor: alpha(colors.purple, 0.1),
-                      color: colors.purple,
-                      fontSize: "0.62rem",
-                      height: 20,
-                      fontWeight: 600,
-                    }}
-                  />
-                </TableCell>
-                <TableCell>
-                  <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
-                    {statusIcon(row.status)}
-                    <Typography
-                      sx={{ fontSize: "0.7rem", color: colors.textSecondary }}
-                    >
-                      {row.status || "Active"}
+                <Cell$>
+                  <Chip label={row.teamRole?.replace("_", " ") || "Inspector"} size="small"
+                    sx={{ height: 18, fontSize: "0.6rem", bgcolor: T.surfaceMid, color: T.inkMid }} />
+                </Cell$>
+                <Cell$><StatusChip status={row.status} /></Cell$>
+                <Cell$>{row.assignedCount ?? 0}</Cell$>
+                <TableCell sx={{ borderBottom: `1px solid ${T.border}` }}>
+                  <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                    <LinearProgress variant="determinate" value={row.completionRate || 0}
+                      sx={{ width: 50, height: 4, borderRadius: 4, bgcolor: T.surfaceMid, "& .MuiLinearProgress-bar": { bgcolor: perfColor(row.completionRate) } }} />
+                    <Typography sx={{ fontSize: "0.65rem", fontWeight: 700, color: T.inkMid }}>
+                      {(row.completionRate || 0).toFixed(0)}%
                     </Typography>
                   </Box>
                 </TableCell>
-                <TableCell
-                  sx={{
-                    fontSize: "0.7rem",
-                    color: colors.textSecondary,
-                    textAlign: "center",
-                  }}
-                >
-                  {row.assignedCount ?? 0}
-                </TableCell>
-                <TableCell
-                  sx={{
-                    fontSize: "0.7rem",
-                    color: colors.textSecondary,
-                    textAlign: "center",
-                  }}
-                >
-                  {row.completedCount ?? 0}
-                </TableCell>
-                <TableCell>
-                  <Chip
-                    label={`${row.completionRate || 0}%`}
-                    size="small"
-                    sx={{
-                      bgcolor: alpha(colors.success, 0.1),
-                      color: colors.success,
-                      fontSize: "0.62rem",
-                      height: 20,
-                    }}
-                  />
-                </TableCell>
-                <TableCell>
-                  <Chip
-                    label={`${row.onTimeRate || 0}%`}
-                    size="small"
-                    sx={{
-                      bgcolor: alpha(colors.primary, 0.1),
-                      color: colors.primary,
-                      fontSize: "0.62rem",
-                      height: 20,
-                    }}
-                  />
-                </TableCell>
-                <TableCell>
-                  <Chip
-                    label={`${row.approvalRate || 0}%`}
-                    size="small"
-                    sx={{
-                      bgcolor: alpha(colors.purple, 0.1),
-                      color: colors.purple,
-                      fontSize: "0.62rem",
-                      height: 20,
-                    }}
-                  />
-                </TableCell>
-                <TableCell
-                  sx={{ fontSize: "0.7rem", color: colors.textSecondary }}
-                >
-                  {row.performanceScore || 0}
-                </TableCell>
-                <TableCell
-                  sx={{ fontSize: "0.7rem", color: colors.textSecondary }}
-                >
-                  {row.qualityScore || 0}
-                </TableCell>
-                <TableCell
-                  sx={{ fontSize: "0.7rem", color: colors.textSecondary }}
-                >
-                  {row.totalInspections ?? 0}
-                </TableCell>
-                <TableCell
-                  sx={{ fontSize: "0.7rem", color: colors.textSecondary }}
-                >
-                  {row.completedInspections ?? 0}
-                </TableCell>
-                <TableCell
-                  sx={{ fontSize: "0.7rem", color: colors.textSecondary }}
-                >
-                  {row.approvedInspections ?? 0}
-                </TableCell>
-                <TableCell
-                  sx={{ fontSize: "0.7rem", color: colors.textSecondary }}
-                >
-                  {row.averageCompletionTime || 0}
-                </TableCell>
-                <TableCell
-                  sx={{
-                    fontSize: "0.7rem",
-                    color: colors.textSecondary,
-                    whiteSpace: "nowrap",
-                  }}
-                >
-                  {row.joinDate
-                    ? new Date(row.joinDate).toLocaleDateString("en-IN")
-                    : "—"}
-                </TableCell>
+                <Cell$>{(row.onTimeRate || 0).toFixed(0)}%</Cell$>
+                <Cell$>
+                  <Chip label={row.performanceScore ?? 0} size="small"
+                    sx={{ height: 18, fontSize: "0.6rem", fontWeight: 700, bgcolor: T.tealLight, color: T.teal }} />
+                </Cell$>
               </TableRow>
             ))}
           </TableBody>
         </Table>
       </TableContainer>
-      <TablePagination
-        component="div"
-        count={rows.length}
-        page={page}
-        onPageChange={(_, p) => setPage(p)}
-        rowsPerPage={rowsPerPage}
-        onRowsPerPageChange={(e) => {
-          setRowsPerPage(+e.target.value);
-          setPage(0);
-        }}
-        rowsPerPageOptions={[5, 10, 25, 50]}
-      />
+      <TablePagination component="div" count={filtered.length} page={page}
+        onPageChange={(_, p) => setPage(p)} rowsPerPage={rpp}
+        onRowsPerPageChange={e => { setRpp(+e.target.value); setPage(0); }}
+        rowsPerPageOptions={[5, 10, 25]}
+        sx={{ "& .MuiTablePagination-selectLabel, & .MuiTablePagination-displayedRows": { fontSize: "0.72rem" } }} />
     </Box>
   );
-}
+};
 
-// Generic Report Table
-function GenericReportTable({ data, reportType }) {
+const AssetReportTable = ({ data }) => {
   const [page, setPage] = useState(0);
-  const [rowsPerPage, setRowsPerPage] = useState(10);
-  const columns = REPORT_COLUMNS_MAP[reportType] || [];
+  const [rpp, setRpp]   = useState(10);
+  const [q, setQ]       = useState("");
 
-  if (!data || !data.data || data.data.length === 0) {
-    return (
-      <EmptyState
-        icon={AssessmentIcon}
-        title="No Data"
-        description="No records found for this report"
-      />
-    );
-  }
-
-  const rows = data.data;
-  const paginated = rows.slice(
-    page * rowsPerPage,
-    page * rowsPerPage + rowsPerPage,
+  const arr = Array.isArray(data) ? data : [];
+  const filtered = arr.filter(r =>
+    (r.assetName || r.name || "").toLowerCase().includes(q.toLowerCase()) ||
+    (r.tagNumber || "").toLowerCase().includes(q.toLowerCase())
   );
+  const paged = filtered.slice(page * rpp, page * rpp + rpp);
 
-  const formatCell = (key, val) => {
-    if (val === null || val === undefined) return "—";
-    if (typeof val === "boolean") return val ? "Yes" : "No";
-    if (key === "address" && typeof val === "object")
-      return [val?.street, val?.city, val?.state].filter(Boolean).join(", ");
-    if (typeof val === "object") return JSON.stringify(val).substring(0, 60);
-    if (typeof val === "string" && /^\d{4}-\d{2}-\d{2}/.test(val))
-      return new Date(val).toLocaleDateString("en-IN");
-    if (key === "monthlyRevenue" || key === "annualRevenue")
-      return `₹${val?.toLocaleString("en-IN") || 0}`;
-    return String(val).substring(0, 60);
-  };
-
-  const statusStyle = (val) => {
-    if (!val) return {};
-    const v = String(val).toLowerCase();
-    if (["active", "completed", "paid", "approved"].includes(v))
-      return { bgcolor: alpha(colors.success, 0.1), color: colors.success };
-    if (["inactive", "overdue", "failed", "rejected", "pending"].includes(v))
-      return { bgcolor: alpha(colors.error, 0.1), color: colors.error };
-    return {
-      bgcolor: alpha(colors.textDisabled, 0.1),
-      color: colors.textSecondary,
-    };
-  };
+  if (!arr.length) return <EmptyState icon={InventoryIcon} title="No assets found" desc="Adjust filters and regenerate" />;
 
   return (
     <Box>
-      <TableContainer sx={{ maxHeight: 480, overflowX: "auto" }}>
+      <Box sx={{ mb: 2 }}>
+        <TextField size="small" placeholder="Search by name or tag…" value={q}
+          onChange={e => { setQ(e.target.value); setPage(0); }}
+          sx={{ width: 240 }}
+          InputProps={{ startAdornment: <InputAdornment position="start"><SearchIcon sx={{ fontSize: 16, color: T.inkLight }} /></InputAdornment> }} />
+      </Box>
+      <TableContainer sx={{ maxHeight: 480 }}>
         <Table stickyHeader size="small">
           <TableHead>
             <TableRow>
-              {columns.map((col) => (
-                <TableCell
-                  key={col.key}
-                  sx={{
-                    bgcolor: alpha(colors.primary, 0.05),
-                    fontWeight: 700,
-                    fontSize: "0.7rem",
-                    color: colors.textPrimary,
-                    whiteSpace: "nowrap",
-                    borderBottom: `2px solid ${colors.border}`,
-                  }}
-                >
-                  {col.header}
-                </TableCell>
+              {["Asset name", "Tag", "Serial", "Category", "Location", "Condition", "Health", "Status"].map(h => <ColHead key={h}>{h}</ColHead>)}
+            </TableRow>
+          </TableHead>
+          <TableBody>
+            {paged.map((row, i) => (
+              <TableRow key={i} hover sx={{ "&:hover": { bgcolor: T.surface } }}>
+                <Cell$ bold>{row.assetName || row.name || "—"}</Cell$>
+                <Cell$>{row.tagNumber || row.tag || "—"}</Cell$>
+                <Cell$>{row.serialNumber || row.serial || "—"}</Cell$>
+                <Cell$>
+                  <Chip label={row.assetCategory || row.category || "Uncategorized"} size="small"
+                    sx={{ height: 18, fontSize: "0.6rem", bgcolor: T.surfaceMid, color: T.inkMid }} />
+                </Cell$>
+                <Cell$>{row.currentLocation || row.location || "—"}</Cell$>
+                <Cell$><StatusChip status={row.assetCondition || row.condition} /></Cell$>
+                <Cell$>
+                  <Chip label={`${row.healthScore || row.health_score || 0}%`} size="small"
+                    sx={{ height: 18, fontSize: "0.6rem", fontWeight: 700, bgcolor: T.greenLight, color: T.green }} />
+                </Cell$>
+                <Cell$><StatusChip status={row.status || "Active"} /></Cell$>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </TableContainer>
+      <TablePagination component="div" count={filtered.length} page={page}
+        onPageChange={(_, p) => setPage(p)} rowsPerPage={rpp}
+        onRowsPerPageChange={e => { setRpp(+e.target.value); setPage(0); }}
+        rowsPerPageOptions={[5, 10, 25, 50]}
+        sx={{ "& .MuiTablePagination-selectLabel, & .MuiTablePagination-displayedRows": { fontSize: "0.72rem" } }} />
+    </Box>
+  );
+};
+
+const GenericReportTable = ({ data, reportType }) => {
+  const [page, setPage] = useState(0);
+  const [rpp, setRpp]   = useState(10);
+  const [q, setQ]       = useState("");
+
+  if (!data?.length) return <EmptyState icon={AssessmentIcon} title="No records found" desc="Try different filters or date range" />;
+
+  const columns = Object.keys(data[0]).slice(0, 8);
+  const filtered = q
+    ? data.filter(r => columns.some(c => String(r[c] || "").toLowerCase().includes(q.toLowerCase())))
+    : data;
+  const paged = filtered.slice(page * rpp, page * rpp + rpp);
+
+  return (
+    <Box>
+      <Box sx={{ mb: 2 }}>
+        <TextField size="small" placeholder="Search…" value={q}
+          onChange={e => { setQ(e.target.value); setPage(0); }}
+          sx={{ width: 240 }}
+          InputProps={{ startAdornment: <InputAdornment position="start"><SearchIcon sx={{ fontSize: 16, color: T.inkLight }} /></InputAdornment> }} />
+      </Box>
+      <TableContainer sx={{ maxHeight: 480 }}>
+        <Table stickyHeader size="small">
+          <TableHead>
+            <TableRow>
+              {columns.map(col => (
+                <ColHead key={col}>
+                  {col.replace(/([A-Z])/g, " $1").trim().toLowerCase()}
+                </ColHead>
               ))}
             </TableRow>
           </TableHead>
           <TableBody>
-            {paginated.map((row, idx) => (
-              <TableRow
-                key={idx}
-                hover
-                sx={{ "&:hover": { bgcolor: alpha(colors.primary, 0.02) } }}
-              >
-                {columns.map(({ key }) => (
-                  <TableCell
-                    key={key}
-                    sx={{
-                      fontSize: "0.7rem",
-                      color: colors.textSecondary,
-                      whiteSpace: "nowrap",
-                    }}
-                  >
-                    {[
-                      "status",
-                      "submissionStatus",
-                      "plan",
-                      "priority",
-                    ].includes(key) ? (
-                      <Chip
-                        label={row[key] || "—"}
-                        size="small"
-                        sx={{
-                          ...statusStyle(row[key]),
-                          fontSize: "0.62rem",
-                          height: 20,
-                          fontWeight: 600,
-                        }}
-                      />
-                    ) : (
-                      formatCell(key, row[key])
-                    )}
-                  </TableCell>
+            {paged.map((row, i) => (
+              <TableRow key={i} hover sx={{ "&:hover": { bgcolor: T.surface } }}>
+                {columns.map((col, j) => (
+                  <Cell$ key={col} bold={j === 0}>
+                    {String(row[col] ?? "—").slice(0, 60)}
+                  </Cell$>
                 ))}
               </TableRow>
             ))}
           </TableBody>
         </Table>
       </TableContainer>
-      <TablePagination
-        component="div"
-        count={rows.length}
-        page={page}
-        onPageChange={(_, p) => setPage(p)}
-        rowsPerPage={rowsPerPage}
-        onRowsPerPageChange={(e) => {
-          setRowsPerPage(+e.target.value);
-          setPage(0);
-        }}
-        rowsPerPageOptions={[5, 10, 25, 50]}
-      />
+      <TablePagination component="div" count={filtered.length} page={page}
+        onPageChange={(_, p) => setPage(p)} rowsPerPage={rpp}
+        onRowsPerPageChange={e => { setRpp(+e.target.value); setPage(0); }}
+        rowsPerPageOptions={[5, 10, 25]}
+        sx={{ "& .MuiTablePagination-selectLabel, & .MuiTablePagination-displayedRows": { fontSize: "0.72rem" } }} />
     </Box>
   );
-}
+};
 
-// Smart Report Table Router
-function ReportTablePreview({ data, reportType, isSuperAdmin, isAdmin }) {
-  if (!data || !data.data || data.data.length === 0) {
-    return (
-      <EmptyState
-        icon={AssessmentIcon}
-        title="No Report Data"
-        description="Generate a report using the filter button above"
-      />
-    );
-  }
+// ─── Chart section ────────────────────────────────────────────────────────────
+const ChartPane = ({ title, children }) => (
+  <Paper elevation={0} sx={{ p: 2.5, borderRadius: "14px", border: `1px solid ${T.border}`, bgcolor: T.white }}>
+    <Typography sx={{ fontWeight: 700, fontSize: "0.8rem", color: T.ink, mb: 2 }}>{title}</Typography>
+    {children}
+  </Paper>
+);
 
-  if (isSuperAdmin && reportType === "clients")
-    return <ClientReportTable data={data} />;
-  if (isAdmin && reportType === "team") return <TeamReportTable data={data} />;
-  return <GenericReportTable data={data} reportType={reportType} />;
-}
+const NoChart = ({ msg = "No data" }) => (
+  <Box height={200} display="flex" alignItems="center" justifyContent="center">
+    <Typography sx={{ fontSize: "0.76rem", color: T.inkLight }}>{msg}</Typography>
+  </Box>
+);
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Main Reports Page
-// ─────────────────────────────────────────────────────────────────────────────
-export default function ReportsPage() {
-  const theme = useMuiTheme();
-  const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
-  const isTablet = useMediaQuery(theme.breakpoints.between("sm", "md"));
-
+// ─── MAIN COMPONENT ───────────────────────────────────────────────────────────
+const ReportsDashboard = () => {
   const { user } = useAuth();
   const {
-    loading,
-    error,
-    analyticsData,
-    reportData,
-    getDashboardAnalytics,
-    getClientReport,
-    getAssetReport,
-    getTeamReport,
-    getChecklistReport,
-    getAssignmentReport,
-    getInspectionReport,
-    getRevenueReport,
-    getComplianceReport,
-    clearError,
-    clearReportData,
-    isAdmin,
-    isSuperAdmin,
+    loading, error, analyticsData, reportData,
+    getDashboardAnalytics, getClientReport, getAssetReport, getTeamReport,
+    getChecklistReport, getAssignmentReport, getInspectionReport,
+    getRevenueReport, getComplianceReport,
+    clearError, clearReportData, isAdmin, isSuperAdmin,
   } = useReport();
 
-  const [dateRange, setDateRange] = useState(30);
-  const [tabValue, setTabValue] = useState(0);
-  const [filterDialogOpen, setFilterDialogOpen] = useState(false);
-  const [reportType, setReportType] = useState(() =>
-    isSuperAdmin ? "clients" : isAdmin ? "team" : "inspections",
+  const isMobile    = useMediaQuery("(max-width:640px)");
+  const reportRef   = useRef();
+  const [dateRange, setDateRange]           = useState(30);
+  const [reportType, setReportType]         = useState(() =>
+    user?.role === "super_admin" ? "clients" : user?.role === "admin" ? "team" : "inspections"
   );
-  const [reportFilters, setReportFilters] = useState({});
-  const [toast, setToast] = useState({
-    open: false,
-    message: "",
-    severity: "success",
-  });
-  const [excelExporting, setExcelExporting] = useState(false);
+  const [reportFilters, setReportFilters]   = useState({});
+  const [filterOpen, setFilterOpen]         = useState(false);
+  const [exporting, setExporting]           = useState(false);
+  const [generating, setGenerating]         = useState(false);
+  const [toast, setToast]                   = useState({ open: false, message: "", severity: "success" });
+  const [exportFormat, setExportFormat]     = useState(null);
 
-  const showToast = useCallback(
-    (msg, sev = "success") =>
-      setToast({ open: true, message: msg, severity: sev }),
-    [],
-  );
-  const closeToast = useCallback(
-    () => setToast((prev) => ({ ...prev, open: false })),
-    [],
-  );
+  const showToast  = useCallback((msg, sev = "success") => setToast({ open: true, message: msg, severity: sev }), []);
+  const closeToast = useCallback(() => setToast(p => ({ ...p, open: false })), []);
 
   useEffect(() => {
-    loadAnalytics();
+    getDashboardAnalytics(dateRange).catch(() => showToast("Could not load analytics", "warning"));
   }, [dateRange]);
 
   useEffect(() => {
-    if (isSuperAdmin) setReportType("clients");
-    else if (isAdmin) setReportType("team");
-    else setReportType("inspections");
     clearReportData();
-  }, [isSuperAdmin, isAdmin, clearReportData]);
+  }, [reportType]);
 
-  const loadAnalytics = useCallback(async () => {
+  // Generate report
+  const handleGenerate = useCallback(async () => {
+    setGenerating(true);
     try {
-      await getDashboardAnalytics(dateRange);
-    } catch (err) {
-      console.error("Failed to load analytics:", err);
-      showToast("Failed to load analytics data", "error");
-    }
-  }, [dateRange, getDashboardAnalytics, showToast]);
-
-  const getAvailableReportTypes = useCallback(() => {
-    if (isSuperAdmin) {
-      return [
-        {
-          value: "clients",
-          label: "Client Report",
-          icon: <BusinessIcon sx={{ fontSize: 16 }} />,
-        },
-        {
-          value: "assets",
-          label: "Asset Report",
-          icon: <InventoryIcon sx={{ fontSize: 16 }} />,
-        },
-        {
-          value: "team",
-          label: "Team Report",
-          icon: <GroupsIcon sx={{ fontSize: 16 }} />,
-        },
-        {
-          value: "checklists",
-          label: "Checklist Report",
-          icon: <AssignmentIcon sx={{ fontSize: 16 }} />,
-        },
-        {
-          value: "assignments",
-          label: "Assignment Report",
-          icon: <AssignmentIcon sx={{ fontSize: 16 }} />,
-        },
-        {
-          value: "inspections",
-          label: "Inspection Report",
-          icon: <AssignmentIcon sx={{ fontSize: 16 }} />,
-        },
-        {
-          value: "revenue",
-          label: "Revenue Report",
-          icon: <CurrencyRupeeIcon sx={{ fontSize: 16 }} />,
-        },
-        {
-          value: "compliance",
-          label: "Compliance Report",
-          icon: <AssignmentIcon sx={{ fontSize: 16 }} />,
-        },
-      ];
-    }
-    if (isAdmin) {
-      return [
-        {
-          value: "assets",
-          label: "Asset Report",
-          icon: <InventoryIcon sx={{ fontSize: 16 }} />,
-        },
-        {
-          value: "team",
-          label: "Team Report",
-          icon: <GroupsIcon sx={{ fontSize: 16 }} />,
-        },
-        {
-          value: "checklists",
-          label: "Checklist Report",
-          icon: <AssignmentIcon sx={{ fontSize: 16 }} />,
-        },
-        {
-          value: "assignments",
-          label: "Assignment Report",
-          icon: <AssignmentIcon sx={{ fontSize: 16 }} />,
-        },
-        {
-          value: "inspections",
-          label: "Inspection Report",
-          icon: <AssignmentIcon sx={{ fontSize: 16 }} />,
-        },
-        {
-          value: "compliance",
-          label: "Compliance Report",
-          icon: <AssignmentIcon sx={{ fontSize: 16 }} />,
-        },
-      ];
-    }
-    return [
-      {
-        value: "inspections",
-        label: "Inspection Report",
-        icon: <AssignmentIcon sx={{ fontSize: 16 }} />,
-      },
-      {
-        value: "compliance",
-        label: "Compliance Report",
-        icon: <AssignmentIcon sx={{ fontSize: 16 }} />,
-      },
-    ];
-  }, [isAdmin, isSuperAdmin]);
-
-  const handleGenerateReport = useCallback(async () => {
-    setExcelExporting(false);
-    try {
-      let result = null;
-
-      switch (reportType) {
-        case "clients":
-          result = await getClientReport(reportFilters);
-          break;
-        case "assets":
-          result = await getAssetReport(reportFilters);
-          break;
-        case "team":
-          result = await getTeamReport(reportFilters);
-          break;
-        case "checklists":
-          result = await getChecklistReport(reportFilters);
-          break;
-        case "assignments":
-          result = await getAssignmentReport(reportFilters);
-          break;
-        case "inspections":
-          result = await getInspectionReport(reportFilters);
-          break;
-        case "revenue":
-          result = await getRevenueReport(reportFilters);
-          break;
-        case "compliance":
-          result = await getComplianceReport(reportFilters);
-          break;
-        default:
-          console.warn("Unknown report type:", reportType);
-          return;
-      }
-
-      if (result && result.success) {
-        setFilterDialogOpen(false);
-        const recordCount =
-          result.data?.data?.length || result.data?.totalRecords || 0;
-        showToast(
-          `${reportType.charAt(0).toUpperCase() + reportType.slice(1)} report generated with ${recordCount} records`,
-          "success",
-        );
+      const fetchers = {
+        clients:     getClientReport,
+        assets:      getAssetReport,
+        team:        getTeamReport,
+        checklists:  getChecklistReport,
+        assignments: getAssignmentReport,
+        inspections: getInspectionReport,
+        revenue:     getRevenueReport,
+        compliance:  getComplianceReport,
+      };
+      const fn = fetchers[reportType];
+      if (!fn) { showToast("Unknown report type", "error"); return; }
+      const result = await fn(reportFilters);
+      if (result?.success) {
+        setFilterOpen(false);
+        const count = result.data?.data?.length ?? 0;
+        showToast(count > 0 ? `${count} record${count !== 1 ? "s" : ""} loaded` : "Report generated — no records match your filters", count > 0 ? "success" : "info");
       } else if (result === null) {
-        showToast(
-          "Failed to generate report. Please check your permissions.",
-          "error",
-        );
+        // error already set in context
       }
-    } catch (err) {
-      console.error("Report generation error:", err);
-      showToast(err.message || "Failed to generate report", "error");
-    }
-  }, [
-    reportType,
-    reportFilters,
-    getClientReport,
-    getAssetReport,
-    getTeamReport,
-    getChecklistReport,
-    getAssignmentReport,
-    getInspectionReport,
-    getRevenueReport,
-    getComplianceReport,
-    showToast,
-  ]);
-
-  const handleExcelExport = useCallback(async () => {
-    setExcelExporting(true);
-    try {
-      let exportData = reportData;
-
-      if (!exportData || !exportData.data || exportData.data.length === 0) {
-        showToast("Fetching report data for export...", "info");
-        let result = null;
-        switch (reportType) {
-          case "clients":
-            result = await getClientReport(reportFilters);
-            break;
-          case "assets":
-            result = await getAssetReport(reportFilters);
-            break;
-          case "team":
-            result = await getTeamReport(reportFilters);
-            break;
-          case "checklists":
-            result = await getChecklistReport(reportFilters);
-            break;
-          case "assignments":
-            result = await getAssignmentReport(reportFilters);
-            break;
-          case "inspections":
-            result = await getInspectionReport(reportFilters);
-            break;
-          case "revenue":
-            result = await getRevenueReport(reportFilters);
-            break;
-          case "compliance":
-            result = await getComplianceReport(reportFilters);
-            break;
-        }
-        if (result?.data) exportData = result.data;
-      }
-
-      if (exportData?.data?.length > 0) {
-        const userRole = isSuperAdmin
-          ? "Super Admin"
-          : isAdmin
-            ? "Admin"
-            : "Team Member";
-        const success = exportToExcel(
-          exportData,
-          reportType,
-          dateRange,
-          reportFilters,
-          userRole,
-        );
-        if (success) {
-          showToast(
-            `Excel exported! (${exportData.data.length} records)`,
-            "success",
-          );
-        } else {
-          showToast("Failed to generate Excel", "error");
-        }
-      } else {
-        showToast(
-          "No data available to export. Generate a report first.",
-          "warning",
-        );
-      }
-    } catch (err) {
-      console.error("Excel Export error:", err);
-      showToast("Failed to export Excel", "error");
+    } catch (e) {
+      showToast(e.message || "Failed to generate report", "error");
     } finally {
-      setExcelExporting(false);
+      setGenerating(false);
     }
-  }, [
-    reportData,
-    reportType,
-    isAdmin,
-    isSuperAdmin,
-    reportFilters,
-    dateRange,
-    getClientReport,
-    getAssetReport,
-    getTeamReport,
-    getChecklistReport,
-    getAssignmentReport,
-    getInspectionReport,
-    getRevenueReport,
-    getComplianceReport,
-    showToast,
-  ]);
+  }, [reportType, reportFilters, getClientReport, getAssetReport, getTeamReport, getChecklistReport, getAssignmentReport, getInspectionReport, getRevenueReport, getComplianceReport, showToast]);
 
-  // Chart Data
-  const revenueTrend = useMemo(() => {
-    if (!analyticsData?.revenueTrend) return [];
-    return [
-      {
-        name: "Current",
-        value: analyticsData.revenueTrend.current || 0,
-        fill: colors.primary,
-      },
-      {
-        name: "Previous",
-        value: analyticsData.revenueTrend.previous || 0,
-        fill: colors.secondary,
-      },
-      {
-        name: "Projected",
-        value: analyticsData.revenueTrend.projected || 0,
-        fill: colors.success,
-      },
+  // Export
+  const handleExport = useCallback(async (format) => {
+    if (!reportData?.data?.length) {
+      showToast("Generate a report first, then export it.", "warning");
+      return;
+    }
+    setExporting(true);
+    try {
+      if (format === "pdf") {
+        await exportToPDF(reportData.data, reportType, reportData.summary);
+        showToast("PDF downloaded");
+      } else {
+        exportToExcel(reportData.data, reportType, reportData.summary);
+        showToast("Excel file downloaded");
+      }
+    } catch (e) {
+      showToast(`Export failed: ${e.message}`, "error");
+    } finally {
+      setExporting(false);
+    }
+  }, [reportData, reportType, showToast]);
+
+  // Stat cards
+  const statCards = useMemo(() => {
+    if (isSuperAdmin) return [
+      { icon: BusinessIcon,      label: "Total clients",   value: fmt(analyticsData?.clientGrowth?.total),                 color: T.teal },
+      { icon: CurrencyRupeeIcon, label: "Monthly revenue", value: `₹${fmt(analyticsData?.revenueTrend?.current ?? 0)}`,  color: T.green },
+      { icon: AssignmentIcon,    label: "Active checklists",value: fmt(analyticsData?.checklistUsage?.active),            color: T.amber },
+      { icon: PeopleIcon,        label: "Total team",      value: fmt(analyticsData?.teamStats?.total),                   color: T.blue },
     ];
+    return [
+      { icon: PeopleIcon,     label: "Team members",  value: fmt(analyticsData?.teamStats?.total),     color: T.teal },
+      { icon: InventoryIcon,  label: "Total assets",  value: fmt(analyticsData?.assetStats?.total),    color: T.green },
+      { icon: AssignmentIcon, label: "Checklists",    value: fmt(analyticsData?.checklistStats?.total),color: T.amber },
+      { icon: TaskAltIcon,    label: "Completion",    value: `${analyticsData?.completionRate ?? 0}%`, color: T.blue },
+    ];
+  }, [analyticsData, isSuperAdmin]);
+
+  // Chart data (demo / from analytics)
+  const areaData  = analyticsData?.revenueTimeline || [
+    { name: "Wk 1", value: 12500 }, { name: "Wk 2", value: 14800 },
+    { name: "Wk 3", value: 13200 }, { name: "Wk 4", value: 16700 },
+  ];
+  const pieData = useMemo(() => {
+    const byPlan = analyticsData?.planDistribution || {};
+    const entries = Object.entries(byPlan);
+    return entries.length > 0
+      ? entries.map(([name, value]) => ({ name, value }))
+      : [{ name: "Basic", value: 2 }, { name: "Professional", value: 2 }, { name: "Enterprise", value: 1 }];
   }, [analyticsData]);
 
-  const clientGrowthData = useMemo(() => {
-    if (!analyticsData?.clientGrowth) return [];
-    return [
-      { name: "Total", value: analyticsData.clientGrowth.total || 0 },
-      { name: "New", value: analyticsData.clientGrowth.new || 0 },
-      { name: "Prev Period", value: analyticsData.clientGrowth.previous || 0 },
-    ];
-  }, [analyticsData]);
+  const renderTable = () => {
+    if (!reportData) return null;
+    const d = reportData.data || [];
+    if (!d.length) return <EmptyState icon={AssessmentIcon} title="No records" desc="Try different filters or date range" />;
+    if (reportType === "clients" && isSuperAdmin) return <ClientReportTable data={d} />;
+    if (reportType === "team")    return <TeamReportTable data={d} />;
+    if (reportType === "assets")  return <AssetReportTable data={d} />;
+    return <GenericReportTable data={d} reportType={reportType} />;
+  };
 
-  const pieData = [
-    { name: "Safety", value: 35, color: colors.primary },
-    { name: "Equipment", value: 25, color: colors.primaryLight },
-    { name: "Quality", value: 20, color: colors.warning },
-    { name: "Maintenance", value: 15, color: colors.purple },
-    { name: "Other", value: 5, color: colors.textDisabled },
+  const reportTypeOptions = [
+    ...(isSuperAdmin ? [{ value: "clients", label: "Clients" }, { value: "revenue", label: "Revenue" }] : []),
+    { value: "assets",      label: "Assets" },
+    ...(isAdmin || isSuperAdmin ? [{ value: "team", label: "Team" }] : []),
+    { value: "checklists",  label: "Checklists" },
+    { value: "assignments", label: "Assignments" },
+    { value: "inspections", label: "Inspections" },
+    { value: "compliance",  label: "Compliance" },
   ];
-
-  const statCards = [
-    {
-      icon: <BusinessIcon sx={{ fontSize: { xs: 16, sm: 18, md: 20 } }} />,
-      label: "Total Clients",
-      value: analyticsData?.clientGrowth?.total || 0,
-      sub: `${analyticsData?.clientGrowth?.new || 0} new`,
-      bg: `linear-gradient(135deg, ${colors.primary} 0%, ${colors.primaryLight} 100%)`,
-    },
-    {
-      icon: <AssignmentIcon sx={{ fontSize: { xs: 16, sm: 18, md: 20 } }} />,
-      label: "Active Checklists",
-      value: analyticsData?.checklistUsage?.active || 0,
-      sub: `${analyticsData?.checklistUsage?.activeRate || 0}% active`,
-      bg: `linear-gradient(135deg, ${colors.purple} 0%, #9333ea 100%)`,
-    },
-    {
-      icon: <CurrencyRupeeIcon sx={{ fontSize: { xs: 16, sm: 18, md: 20 } }} />,
-      label: "Total Revenue",
-      value: `₹${(analyticsData?.revenueTrend?.current || 0).toLocaleString("en-IN")}`,
-      sub: "Current period",
-      bg: `linear-gradient(135deg, #062c66 0%, #1e3a8a 100%)`,
-    },
-    {
-      icon: <TrendingUpIcon sx={{ fontSize: { xs: 16, sm: 18, md: 20 } }} />,
-      label: "Revenue Growth",
-      value: `${analyticsData?.revenueTrend?.growth || 0}%`,
-      sub:
-        (analyticsData?.revenueTrend?.growth || 0) > 10
-          ? "Above target"
-          : "Below target",
-      bg:
-        (analyticsData?.revenueTrend?.growth || 0) > 10
-          ? `linear-gradient(135deg, ${colors.success} 0%, #16a34a 100%)`
-          : `linear-gradient(135deg, ${colors.error} 0%, #dc2626 100%)`,
-    },
-  ];
-
-  if (!analyticsData && loading) return <ReportSkeleton />;
-  if (error && !analyticsData)
-    return <ErrorState message={error} onRetry={loadAnalytics} />;
 
   return (
-    <Box
-      sx={{
-        bgcolor: colors.background,
-        minHeight: "100%",
-        p: { xs: 1.5, sm: 2, md: 3, lg: 3.5 },
-        maxWidth: { xl: 1400 },
-        mx: "auto",
-      }}
-    >
+    <Box sx={{ bgcolor: T.surface, minHeight: "100vh", p: { xs: 1.5, sm: 2, md: 3 } }}>
+
       {/* Header */}
-      <Box
-        sx={{
-          display: "flex",
-          flexDirection: { xs: "column", sm: "row" },
-          alignItems: { xs: "flex-start", sm: "center" },
-          justifyContent: "space-between",
-          gap: { xs: 1.5, sm: 2 },
-          mb: { xs: 2, sm: 2.5, md: 3 },
-        }}
-      >
+      <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: { xs: "flex-start", sm: "center" }, mb: 3, flexDirection: { xs: "column", sm: "row" }, gap: 1.5 }}>
         <Box>
-          <Typography
-            variant="h5"
-            fontWeight={800}
-            sx={{
-              color: colors.textPrimary,
-              fontSize: { xs: "1rem", sm: "1.125rem", md: "1.25rem" },
-            }}
-          >
-            Reports & Analytics
+          <Typography sx={{ fontWeight: 700, color: T.ink, fontSize: { xs: "1.15rem", sm: "1.4rem" }, letterSpacing: "-0.02em" }}>
+            Analytics & reports
           </Typography>
-          <Typography
-            variant="caption"
-            sx={{
-              color: colors.textSecondary,
-              mt: 0.3,
-              display: "block",
-              fontSize: { xs: "0.65rem", sm: "0.7rem" },
-            }}
-          >
-            {isSuperAdmin
-              ? "Client & financial reports for your organization"
-              : isAdmin
-                ? "Team, asset & inspection reports for your account"
-                : "Your inspection and assignment reports"}
+          <Typography sx={{ color: T.inkLight, fontSize: "0.7rem", mt: 0.3 }}>
+            {isSuperAdmin ? "Enterprise-wide insights" : isAdmin ? "Team & asset analytics" : "Inspection & compliance reports"}
           </Typography>
         </Box>
-
-        <Stack
-          direction={{ xs: "column", sm: "row" }}
-          spacing={1}
-          sx={{ width: { xs: "100%", sm: "auto" } }}
-        >
-          <ToggleButtonGroup
-            size="small"
-            value={dateRange}
-            exclusive
-            onChange={(e, val) => val && setDateRange(val)}
-            sx={{
-              "& .MuiToggleButton-root": {
-                px: { xs: 1, sm: 1.5 },
-                py: 0.5,
-                fontSize: { xs: "0.6rem", sm: "0.65rem" },
-                border: `1px solid ${colors.border}`,
-              },
-            }}
+        <Stack direction="row" spacing={1} flexWrap="wrap" gap={1}>
+          <ToggleButtonGroup size="small" value={dateRange} exclusive
+            onChange={(_, v) => v && setDateRange(v)}
+            sx={{ "& .MuiToggleButton-root": { fontSize: "0.7rem", py: 0.5, px: 1.5, textTransform: "none", borderColor: T.border, color: T.inkLight, "&.Mui-selected": { bgcolor: T.ink, color: "#fff", borderColor: T.ink } } }}
           >
-            <ToggleButton value={7}>7d</ToggleButton>
-            <ToggleButton value={30}>30d</ToggleButton>
-            <ToggleButton value={90}>90d</ToggleButton>
+            <ToggleButton value={7}>7 days</ToggleButton>
+            <ToggleButton value={30}>30 days</ToggleButton>
+            <ToggleButton value={90}>90 days</ToggleButton>
           </ToggleButtonGroup>
 
-          <Box sx={{ display: "flex", gap: 0.5 }}>
-            <IconButton
-              onClick={loadAnalytics}
-              disabled={loading}
-              size="small"
-              sx={{
-                bgcolor: colors.surface,
-                border: `1px solid ${colors.border}`,
-              }}
-            >
-              {loading ? (
-                <CircularProgress size={16} />
-              ) : (
-                <RefreshIcon
-                  sx={{
-                    fontSize: { xs: 16, sm: 18 },
-                    color: colors.textSecondary,
-                  }}
-                />
-              )}
+          <Tooltip title="Refresh analytics">
+            <IconButton onClick={() => getDashboardAnalytics(dateRange)} disabled={loading}
+              sx={{ bgcolor: T.white, border: `1px solid ${T.border}`, borderRadius: "10px" }}>
+              {loading ? <CircularProgress size={17} /> : <RefreshIcon sx={{ fontSize: 18, color: T.inkMid }} />}
             </IconButton>
-            <IconButton
-              onClick={() => setFilterDialogOpen(true)}
-              size="small"
-              sx={{
-                bgcolor: colors.surface,
-                border: `1px solid ${colors.border}`,
-              }}
-            >
-              <FilterListIcon
-                sx={{
-                  fontSize: { xs: 16, sm: 18 },
-                  color: colors.textSecondary,
-                }}
-              />
-            </IconButton>
-            <Button
-              variant="contained"
-              startIcon={
-                excelExporting ? (
-                  <CircularProgress size={14} color="inherit" />
-                ) : (
-                  <DownloadIcon sx={{ fontSize: { xs: 14, sm: 16 } }} />
-                )
-              }
-              onClick={handleExcelExport}
-              disabled={excelExporting}
-              sx={{
-                bgcolor: colors.primary,
-                fontSize: { xs: "0.65rem", sm: "0.7rem" },
-                px: { xs: 1.5, sm: 2 },
-              }}
-            >
-              {isMobile ? "Excel" : "Export Excel"}
-            </Button>
-          </Box>
+          </Tooltip>
+
+          <Button
+            startIcon={<FilterIcon sx={{ fontSize: 16 }} />}
+            onClick={() => setFilterOpen(true)}
+            sx={{ bgcolor: T.white, border: `1px solid ${T.border}`, color: T.inkMid, borderRadius: "10px", textTransform: "none", fontSize: "0.78rem", fontWeight: 600, px: 1.5 }}
+          >
+            Filters
+          </Button>
+
+          <Button
+            variant="contained"
+            startIcon={generating ? <CircularProgress size={15} color="inherit" /> : <AssessmentIcon sx={{ fontSize: 16 }} />}
+            onClick={handleGenerate}
+            disabled={generating}
+            sx={{ bgcolor: T.ink, borderRadius: "10px", textTransform: "none", fontSize: "0.78rem", fontWeight: 600, px: 2, "&:hover": { bgcolor: T.inkMid } }}
+          >
+            Generate report
+          </Button>
         </Stack>
       </Box>
 
+      {/* Global error banner */}
       {error && (
-        <Alert
-          severity="error"
-          onClose={clearError}
-          sx={{ mb: 2, borderRadius: 2 }}
-          action={
-            <Button color="inherit" size="small" onClick={loadAnalytics}>
-              Retry
-            </Button>
-          }
-        >
+        <Alert severity="error" onClose={clearError}
+          sx={{ mb: 2, borderRadius: "12px", fontSize: "0.78rem" }}
+          icon={<ErrorIcon sx={{ fontSize: 18 }} />}>
           {error}
         </Alert>
       )}
 
-      {/* Stat Cards */}
-      <Box
-        sx={{
-          display: "grid",
-          gridTemplateColumns: {
-            xs: "repeat(2, 1fr)",
-            sm: "repeat(2, 1fr)",
-            md: "repeat(4, 1fr)",
-          },
-          gap: { xs: 1, sm: 1.5, md: 2 },
-          mb: { xs: 2, sm: 2.5, md: 3 },
-        }}
-      >
+      {/* Metric tiles */}
+      <Grid container spacing={1.5} mb={3}>
         {statCards.map((card, i) => (
-          <StatCard key={i} {...card} loading={loading} />
-        ))}
-      </Box>
-
-      {/* Tabs */}
-      <Paper
-        sx={{
-          mb: { xs: 2, sm: 2.5 },
-          borderRadius: 2,
-          overflow: "hidden",
-          border: `1px solid ${colors.border}`,
-        }}
-      >
-        <Tabs
-          value={tabValue}
-          onChange={(e, v) => setTabValue(v)}
-          variant={isMobile ? "scrollable" : "standard"}
-          scrollButtons={isMobile ? "auto" : false}
-          sx={{
-            minHeight: { xs: 36, sm: 40 },
-            "& .MuiTab-root": {
-              fontSize: { xs: "0.65rem", sm: "0.7rem" },
-              minHeight: { xs: 36, sm: 40 },
-              px: { xs: 1.5, sm: 2 },
-              textTransform: "none",
-              fontWeight: 600,
-            },
-            "& .MuiTabs-indicator": { bgcolor: colors.primary },
-          }}
-        >
-          <Tab label="Overview" />
-          <Tab label={isSuperAdmin ? "Clients" : "Team"} />
-          <Tab label="Performance" />
-        </Tabs>
-      </Paper>
-
-      {/* Tab Content */}
-      <Box sx={{ mb: { xs: 2, sm: 2.5, md: 3 } }}>
-        {/* Overview Tab */}
-        {tabValue === 0 && (
-          <Grid container spacing={{ xs: 1.5, sm: 2 }}>
-            <Grid item xs={12} lg={7}>
-              <Card
-                sx={{ height: "100%", border: `1px solid ${colors.border}` }}
-              >
-                <CardContent sx={{ p: { xs: 1.5, sm: 2, md: 2.5 } }}>
-                  <Typography
-                    variant="subtitle2"
-                    fontWeight={700}
-                    sx={{
-                      color: colors.textPrimary,
-                      fontSize: { xs: "0.75rem", sm: "0.8rem" },
-                      mb: { xs: 1.5, sm: 2 },
-                    }}
-                  >
-                    Revenue Comparison ({dateRange} days)
-                  </Typography>
-                  {revenueTrend.length > 0 ? (
-                    <ResponsiveContainer
-                      width="100%"
-                      height={isMobile ? 220 : isTablet ? 260 : 300}
-                    >
-                      <BarChart
-                        data={revenueTrend}
-                        margin={{
-                          top: 10,
-                          right: 10,
-                          left: isMobile ? -10 : 0,
-                          bottom: 5,
-                        }}
-                      >
-                        <CartesianGrid
-                          strokeDasharray="3 3"
-                          stroke={alpha(colors.border, 0.5)}
-                          vertical={false}
-                        />
-                        <XAxis
-                          dataKey="name"
-                          axisLine={false}
-                          tickLine={false}
-                          tick={{
-                            fill: colors.textDisabled,
-                            fontSize: isMobile ? 10 : 11,
-                          }}
-                        />
-                        <YAxis
-                          axisLine={false}
-                          tickLine={false}
-                          tick={{
-                            fill: colors.textDisabled,
-                            fontSize: isMobile ? 10 : 11,
-                          }}
-                        />
-                        <Tooltip content={<CustomTooltip valuePrefix="₹" />} />
-                        <Bar
-                          dataKey="value"
-                          radius={[4, 4, 0, 0]}
-                          maxBarSize={60}
-                        >
-                          {revenueTrend.map((entry, index) => (
-                            <Cell key={`cell-${index}`} fill={entry.fill} />
-                          ))}
-                        </Bar>
-                      </BarChart>
-                    </ResponsiveContainer>
-                  ) : (
-                    <EmptyState
-                      icon={ShowChartIcon}
-                      title="No revenue data"
-                      description="Revenue data will appear here"
-                    />
-                  )}
-                </CardContent>
-              </Card>
-            </Grid>
-            <Grid item xs={12} lg={5}>
-              <Card sx={{ border: `1px solid ${colors.border}` }}>
-                <CardContent sx={{ p: { xs: 1.5, sm: 2, md: 2.5 } }}>
-                  <Typography
-                    variant="subtitle2"
-                    fontWeight={700}
-                    sx={{
-                      color: colors.textPrimary,
-                      fontSize: { xs: "0.75rem", sm: "0.8rem" },
-                      mb: { xs: 1.5, sm: 2 },
-                    }}
-                  >
-                    Checklist Distribution
-                  </Typography>
-                  <ResponsiveContainer
-                    width="100%"
-                    height={isMobile ? 220 : isTablet ? 260 : 300}
-                  >
-                    <PieChart>
-                      <Pie
-                        data={pieData}
-                        cx="50%"
-                        cy="50%"
-                        innerRadius={isMobile ? 45 : 55}
-                        outerRadius={isMobile ? 65 : 80}
-                        dataKey="value"
-                        paddingAngle={2}
-                        label={({ name, percent }) =>
-                          isMobile
-                            ? `${(percent * 100).toFixed(0)}%`
-                            : `${name} ${(percent * 100).toFixed(0)}%`
-                        }
-                        labelLine={!isMobile}
-                      >
-                        {pieData.map((entry, idx) => (
-                          <Cell key={idx} fill={entry.color} />
-                        ))}
-                      </Pie>
-                      <Tooltip content={<CustomTooltip valueSuffix="%" />} />
-                    </PieChart>
-                  </ResponsiveContainer>
-                </CardContent>
-              </Card>
-            </Grid>
+          <Grid item xs={6} md={3} key={i}>
+            <MetricTile {...card} loading={loading && !analyticsData} />
           </Grid>
-        )}
+        ))}
+      </Grid>
 
-        {/* Clients / Team Tab */}
-        {tabValue === 1 && (
-          <Card sx={{ border: `1px solid ${colors.border}` }}>
-            <CardContent sx={{ p: { xs: 1.5, sm: 2, md: 2.5 } }}>
-              <Typography
-                variant="subtitle2"
-                fontWeight={700}
-                sx={{
-                  color: colors.textPrimary,
-                  fontSize: { xs: "0.75rem", sm: "0.8rem" },
-                  mb: { xs: 1.5, sm: 2 },
-                }}
-              >
-                {isSuperAdmin ? "Client Growth" : "Team Performance"}
-              </Typography>
-              {clientGrowthData.length > 0 ? (
-                <ResponsiveContainer width="100%" height={isMobile ? 250 : 300}>
-                  <BarChart
-                    data={clientGrowthData}
-                    margin={{
-                      top: 10,
-                      right: 10,
-                      left: isMobile ? -10 : 0,
-                      bottom: 5,
-                    }}
-                  >
-                    <CartesianGrid
-                      strokeDasharray="3 3"
-                      stroke={alpha(colors.border, 0.5)}
-                      vertical={false}
-                    />
-                    <XAxis
-                      dataKey="name"
-                      axisLine={false}
-                      tickLine={false}
-                      tick={{
-                        fill: colors.textDisabled,
-                        fontSize: isMobile ? 10 : 11,
-                      }}
-                    />
-                    <YAxis
-                      axisLine={false}
-                      tickLine={false}
-                      tick={{
-                        fill: colors.textDisabled,
-                        fontSize: isMobile ? 10 : 11,
-                      }}
-                    />
-                    <Tooltip content={<CustomTooltip />} />
-                    <Bar
-                      dataKey="value"
-                      fill={colors.primary}
-                      radius={[4, 4, 0, 0]}
-                      maxBarSize={80}
-                    />
-                  </BarChart>
-                </ResponsiveContainer>
-              ) : (
-                <EmptyState
-                  icon={isSuperAdmin ? PeopleOutlineIcon : GroupsIcon}
-                  title={isSuperAdmin ? "No client data" : "No team data"}
-                  description="Data will appear here after generating a report"
-                />
-              )}
-            </CardContent>
-          </Card>
-        )}
+      {/* Charts */}
+      <Grid container spacing={2} mb={3}>
+        <Grid item xs={12} md={7}>
+          <ChartPane title={isSuperAdmin ? "Revenue overview" : "Activity overview"}>
+            {areaData?.length > 0 ? (
+              <ResponsiveContainer width="100%" height={230}>
+                <AreaChart data={areaData}>
+                  <defs>
+                    <linearGradient id="rG" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%"  stopColor={T.teal} stopOpacity={0.2} />
+                      <stop offset="95%" stopColor={T.teal} stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" stroke={T.border} />
+                  <XAxis dataKey="name" tick={{ fontSize: 10, fill: T.inkLight }} axisLine={false} tickLine={false} />
+                  <YAxis tick={{ fontSize: 10, fill: T.inkLight }} axisLine={false} tickLine={false} />
+                  <RTooltip contentStyle={{ borderRadius: 10, border: `1px solid ${T.border}`, fontSize: 12 }}
+                    formatter={(v) => [`₹${Number(v).toLocaleString("en-IN")}`, "Revenue"]} />
+                  <Area type="monotone" dataKey="value" stroke={T.teal} fill="url(#rG)" strokeWidth={2} />
+                </AreaChart>
+              </ResponsiveContainer>
+            ) : <NoChart msg="Revenue data not available" />}
+          </ChartPane>
+        </Grid>
+        <Grid item xs={12} md={5}>
+          <ChartPane title={isSuperAdmin ? "Clients by plan" : "Task distribution"}>
+            {pieData.length > 0 ? (
+              <ResponsiveContainer width="100%" height={230}>
+                <PieChart>
+                  <Pie data={pieData} cx="50%" cy="50%" innerRadius="44%" outerRadius="66%"
+                    dataKey="value" paddingAngle={3}
+                    label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                    labelLine={false}>
+                    {pieData.map((_, i) => <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />)}
+                  </Pie>
+                  <RTooltip contentStyle={{ borderRadius: 10, border: `1px solid ${T.border}`, fontSize: 12 }} />
+                </PieChart>
+              </ResponsiveContainer>
+            ) : <NoChart />}
+          </ChartPane>
+        </Grid>
+      </Grid>
 
-        {/* Performance Tab */}
-        {tabValue === 2 && (
-          <Card sx={{ border: `1px solid ${colors.border}` }}>
-            <CardContent sx={{ p: { xs: 1.5, sm: 2, md: 2.5 } }}>
-              <Typography
-                variant="subtitle2"
-                fontWeight={700}
-                sx={{
-                  color: colors.textPrimary,
-                  fontSize: { xs: "0.75rem", sm: "0.8rem" },
-                  mb: { xs: 1.5, sm: 2 },
-                }}
-              >
-                Key Insights
+      {/* Report result panel */}
+      <Paper elevation={0} ref={reportRef}
+        sx={{ borderRadius: "14px", border: `1px solid ${T.border}`, bgcolor: T.white, overflow: "hidden", mb: 3 }}>
+
+        {/* Panel header */}
+        <Box sx={{ px: 2.5, py: 2, borderBottom: `1px solid ${T.border}`, display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 1 }}>
+          <Box>
+            <Typography sx={{ fontWeight: 700, fontSize: "0.85rem", color: T.ink }}>
+              {reportTypeOptions.find(o => o.value === reportType)?.label || "Report"} report
+            </Typography>
+            {reportData && (
+              <Typography sx={{ fontSize: "0.65rem", color: T.inkLight, mt: 0.3 }}>
+                {reportData.data?.length ?? 0} records · generated {new Date().toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })}
               </Typography>
-              <Stack spacing={{ xs: 1, sm: 1.5 }}>
-                {[
-                  {
-                    icon: (
-                      <TrendingUpIcon
-                        sx={{
-                          fontSize: { xs: 16, sm: 18 },
-                          color: colors.primary,
-                        }}
-                      />
-                    ),
-                    text: `Revenue has ${(analyticsData?.revenueTrend?.growth || 0) >= 0 ? "increased" : "decreased"} by ${Math.abs(analyticsData?.revenueTrend?.growth || 0)}% compared to the previous period.`,
-                  },
-                  {
-                    icon: (
-                      <PeopleOutlineIcon
-                        sx={{
-                          fontSize: { xs: 16, sm: 18 },
-                          color: colors.primary,
-                        }}
-                      />
-                    ),
-                    text: `Client base grew by ${analyticsData?.clientGrowth?.new || 0} new customers in the last ${dateRange} days.`,
-                  },
-                  {
-                    icon: (
-                      <AssignmentIcon
-                        sx={{
-                          fontSize: { xs: 16, sm: 18 },
-                          color: colors.primary,
-                        }}
-                      />
-                    ),
-                    text: `Checklist completion rate is at ${analyticsData?.checklistUsage?.activeRate || 0}%.`,
-                  },
-                ].map((item, i) => (
-                  <Box
-                    key={i}
-                    sx={{
-                      display: "flex",
-                      alignItems: "flex-start",
-                      gap: { xs: 1, sm: 1.5 },
-                      p: { xs: 1.5, sm: 2 },
-                      bgcolor: alpha(colors.primary, 0.04),
-                      borderRadius: 2,
-                    }}
-                  >
-                    {item.icon}
-                    <Typography
-                      variant="body2"
-                      sx={{
-                        fontSize: { xs: "0.7rem", sm: "0.75rem" },
-                        color: colors.textPrimary,
-                        flex: 1,
-                      }}
-                    >
-                      {item.text}
+            )}
+          </Box>
+
+          {reportData?.data?.length > 0 && (
+            <Stack direction="row" spacing={1}>
+              <Tooltip title="Download as PDF">
+                <IconButton onClick={() => handleExport("pdf")} disabled={exporting} size="small"
+                  sx={{ bgcolor: T.redLight, borderRadius: "8px", p: 0.8 }}>
+                  {exporting ? <CircularProgress size={16} /> : <PdfIcon sx={{ fontSize: 17, color: T.red }} />}
+                </IconButton>
+              </Tooltip>
+              <Tooltip title="Download as Excel">
+                <IconButton onClick={() => handleExport("excel")} disabled={exporting} size="small"
+                  sx={{ bgcolor: T.greenLight, borderRadius: "8px", p: 0.8 }}>
+                  <ExcelIcon sx={{ fontSize: 17, color: T.green }} />
+                </IconButton>
+              </Tooltip>
+            </Stack>
+          )}
+        </Box>
+
+        {/* Summary tiles */}
+        {reportData?.summary && Object.keys(reportData.summary).length > 0 && (
+          <Box sx={{ px: 2.5, pt: 2, pb: 0 }}>
+            <Grid container spacing={1.5} mb={2}>
+              {Object.entries(reportData.summary).slice(0, 6).map(([k, v]) => (
+                <Grid item xs={6} sm={4} md={2} key={k}>
+                  <Box sx={{ p: 1.5, borderRadius: "10px", bgcolor: T.surfaceMid }}>
+                    <Typography sx={{ fontSize: "0.62rem", color: T.inkLight, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.04em", mb: 0.3 }}>
+                      {k.replace(/([A-Z])/g, " $1").trim()}
+                    </Typography>
+                    <Typography sx={{ fontWeight: 700, fontSize: "1rem", color: T.ink }}>
+                      {String(v ?? "—")}
                     </Typography>
                   </Box>
-                ))}
-              </Stack>
-            </CardContent>
-          </Card>
+                </Grid>
+              ))}
+            </Grid>
+            <Divider sx={{ borderColor: T.border, mb: 0 }} />
+          </Box>
         )}
-      </Box>
 
-      {/* Report Preview Table */}
-      {reportData?.data?.length > 0 && (
-        <Card
-          sx={{
-            mt: { xs: 2, sm: 2.5, md: 3 },
-            border: `1px solid ${colors.border}`,
-          }}
-        >
-          <CardContent sx={{ p: { xs: 1.5, sm: 2, md: 2.5 } }}>
-            <Box
-              sx={{
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-                mb: { xs: 1.5, sm: 2 },
-                flexWrap: "wrap",
-                gap: 1,
-              }}
-            >
-              <Box>
-                <Typography
-                  variant="subtitle2"
-                  fontWeight={700}
-                  sx={{
-                    color: colors.textPrimary,
-                    fontSize: { xs: "0.75rem", sm: "0.8rem" },
-                  }}
-                >
-                  Report Preview:{" "}
-                  {reportType.charAt(0).toUpperCase() + reportType.slice(1)}{" "}
-                  Report
-                </Typography>
-                <Typography
-                  variant="caption"
-                  sx={{ color: colors.textSecondary, fontSize: "0.65rem" }}
-                >
-                  {REPORT_COLUMNS_MAP[reportType]?.length || 0} columns ·{" "}
-                  {reportData.data.length} records
-                </Typography>
-              </Box>
-              <Box sx={{ display: "flex", gap: 1, alignItems: "center" }}>
-                <Chip
-                  label={`${reportData.data.length} records`}
-                  size="small"
-                  sx={{
-                    bgcolor: alpha(colors.primary, 0.1),
-                    color: colors.primary,
-                    fontSize: "0.7rem",
-                  }}
-                />
-                <Button
-                  size="small"
-                  variant="outlined"
-                  startIcon={<DownloadIcon sx={{ fontSize: 14 }} />}
-                  onClick={handleExcelExport}
-                  disabled={excelExporting}
-                  sx={{
-                    fontSize: "0.65rem",
-                    borderColor: colors.primary,
-                    color: colors.primary,
-                  }}
-                >
-                  Export
-                </Button>
-              </Box>
-            </Box>
-            <Divider sx={{ mb: 2 }} />
-            <ReportTablePreview
-              data={reportData}
-              reportType={reportType}
-              isSuperAdmin={isSuperAdmin}
-              isAdmin={isAdmin}
+        {/* Table */}
+        <Box sx={{ p: 2.5 }}>
+          {!reportData ? (
+            <EmptyState
+              icon={AssessmentIcon}
+              title="No report generated yet"
+              desc="Click Generate report to pull data with the selected filters"
             />
-          </CardContent>
-        </Card>
-      )}
+          ) : (
+            renderTable()
+          )}
+        </Box>
+      </Paper>
 
-      {/* Filter / Generate Dialog */}
-      <Dialog
-        open={filterDialogOpen}
-        onClose={() => setFilterDialogOpen(false)}
-        maxWidth="sm"
-        fullWidth
+      {/* Filter Dialog */}
+      <Dialog open={filterOpen} onClose={() => setFilterOpen(false)} maxWidth="xs" fullWidth
         fullScreen={isMobile}
-      >
+        PaperProps={{ sx: { borderRadius: isMobile ? 0 : "18px", border: `1px solid ${T.border}` } }}>
         <DialogTitle sx={{ pb: 1 }}>
-          <Box
-            sx={{
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "center",
-            }}
-          >
-            <Typography
-              variant="h6"
-              fontWeight={700}
-              sx={{ fontSize: { xs: "1rem", sm: "1.1rem" } }}
-            >
-              Generate Report
-            </Typography>
-            <IconButton size="small" onClick={() => setFilterDialogOpen(false)}>
-              <CloseIcon fontSize="small" />
+          <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <Typography sx={{ fontWeight: 700, fontSize: "0.95rem", color: T.ink }}>Report filters</Typography>
+            <IconButton size="small" onClick={() => setFilterOpen(false)} sx={{ borderRadius: "8px" }}>
+              <CloseIcon sx={{ fontSize: 18 }} />
             </IconButton>
           </Box>
         </DialogTitle>
-        <DialogContent sx={{ pt: 2 }}>
-          <Stack spacing={{ xs: 1.5, sm: 2 }}>
-            <FormControl fullWidth size="small">
-              <InputLabel>Report Type</InputLabel>
-              <Select
-                value={reportType}
-                onChange={(e) => setReportType(e.target.value)}
-                label="Report Type"
-                sx={{ fontSize: { xs: "0.75rem", sm: "0.8rem" } }}
-              >
-                {getAvailableReportTypes().map((type) => (
-                  <MenuItem key={type.value} value={type.value}>
-                    <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                      {type.icon}
-                      {type.label}
-                    </Box>
-                  </MenuItem>
+        <DialogContent sx={{ pt: 1 }}>
+          <Stack spacing={2}>
+            <FormControl size="small" fullWidth>
+              <InputLabel sx={{ fontSize: "0.82rem" }}>Report type</InputLabel>
+              <Select value={reportType} onChange={e => setReportType(e.target.value)} label="Report type" sx={{ fontSize: "0.82rem" }}>
+                {reportTypeOptions.map(o => (
+                  <MenuItem key={o.value} value={o.value} sx={{ fontSize: "0.82rem" }}>{o.label}</MenuItem>
                 ))}
               </Select>
             </FormControl>
 
-            <TextField
-              label="Start Date"
-              type="date"
-              size="small"
-              fullWidth
-              InputLabelProps={{ shrink: true }}
-              onChange={(e) =>
-                setReportFilters({
-                  ...reportFilters,
-                  startDate: e.target.value,
-                })
-              }
-              sx={{ "& input": { fontSize: { xs: "0.75rem", sm: "0.8rem" } } }}
-            />
-            <TextField
-              label="End Date"
-              type="date"
-              size="small"
-              fullWidth
-              InputLabelProps={{ shrink: true }}
-              onChange={(e) =>
-                setReportFilters({ ...reportFilters, endDate: e.target.value })
-              }
-              sx={{ "& input": { fontSize: { xs: "0.75rem", sm: "0.8rem" } } }}
-            />
+            <TextField label="Start date" type="date" size="small" fullWidth InputLabelProps={{ shrink: true }}
+              sx={{ "& label": { fontSize: "0.82rem" }, "& input": { fontSize: "0.82rem" } }}
+              onChange={e => setReportFilters(p => ({ ...p, startDate: e.target.value }))} />
 
-            {/* Conditional filters */}
+            <TextField label="End date" type="date" size="small" fullWidth InputLabelProps={{ shrink: true }}
+              sx={{ "& label": { fontSize: "0.82rem" }, "& input": { fontSize: "0.82rem" } }}
+              onChange={e => setReportFilters(p => ({ ...p, endDate: e.target.value }))} />
+
             {reportType === "clients" && (
-              <FormControl fullWidth size="small">
-                <InputLabel>Membership Plan</InputLabel>
-                <Select
-                  value={reportFilters.membershipPlan || ""}
-                  onChange={(e) =>
-                    setReportFilters({
-                      ...reportFilters,
-                      membershipPlan: e.target.value,
-                    })
-                  }
-                  label="Membership Plan"
-                >
-                  <MenuItem value="">All Plans</MenuItem>
-                  <MenuItem value="free">Free</MenuItem>
-                  <MenuItem value="standard">Standard</MenuItem>
-                  <MenuItem value="premium">Premium</MenuItem>
-                  <MenuItem value="enterprise">Enterprise</MenuItem>
+              <FormControl size="small" fullWidth>
+                <InputLabel sx={{ fontSize: "0.82rem" }}>Membership plan</InputLabel>
+                <Select value={reportFilters.membershipPlan || ""} label="Membership plan" sx={{ fontSize: "0.82rem" }}
+                  onChange={e => setReportFilters(p => ({ ...p, membershipPlan: e.target.value }))}>
+                  <MenuItem value="" sx={{ fontSize: "0.82rem" }}>All plans</MenuItem>
+                  {["basic", "professional", "enterprise"].map(p => (
+                    <MenuItem key={p} value={p} sx={{ fontSize: "0.82rem", textTransform: "capitalize" }}>{p}</MenuItem>
+                  ))}
                 </Select>
               </FormControl>
             )}
+
             {reportType === "assets" && (
-              <FormControl fullWidth size="small">
-                <InputLabel>Asset Status</InputLabel>
-                <Select
-                  value={reportFilters.status || ""}
-                  onChange={(e) =>
-                    setReportFilters({
-                      ...reportFilters,
-                      status: e.target.value,
-                    })
-                  }
-                  label="Asset Status"
-                >
-                  <MenuItem value="">All Status</MenuItem>
-                  <MenuItem value="Active">Active</MenuItem>
-                  <MenuItem value="In Maintenance">In Maintenance</MenuItem>
-                  <MenuItem value="Retired">Retired</MenuItem>
+              <FormControl size="small" fullWidth>
+                <InputLabel sx={{ fontSize: "0.82rem" }}>Asset status</InputLabel>
+                <Select value={reportFilters.status || ""} label="Asset status" sx={{ fontSize: "0.82rem" }}
+                  onChange={e => setReportFilters(p => ({ ...p, status: e.target.value }))}>
+                  <MenuItem value="" sx={{ fontSize: "0.82rem" }}>All</MenuItem>
+                  {["active", "maintenance", "retired"].map(s => (
+                    <MenuItem key={s} value={s} sx={{ fontSize: "0.82rem", textTransform: "capitalize" }}>{s}</MenuItem>
+                  ))}
                 </Select>
               </FormControl>
             )}
+
             {reportType === "team" && (
-              <FormControl fullWidth size="small">
-                <InputLabel>Team Role</InputLabel>
-                <Select
-                  value={reportFilters.teamRole || ""}
-                  onChange={(e) =>
-                    setReportFilters({
-                      ...reportFilters,
-                      teamRole: e.target.value,
-                    })
-                  }
-                  label="Team Role"
-                >
-                  <MenuItem value="">All Roles</MenuItem>
-                  <MenuItem value="inspector">Inspector</MenuItem>
-                  <MenuItem value="senior_inspector">Senior Inspector</MenuItem>
-                  <MenuItem value="lead_inspector">Lead Inspector</MenuItem>
-                  <MenuItem value="supervisor">Supervisor</MenuItem>
+              <FormControl size="small" fullWidth>
+                <InputLabel sx={{ fontSize: "0.82rem" }}>Role</InputLabel>
+                <Select value={reportFilters.teamRole || ""} label="Role" sx={{ fontSize: "0.82rem" }}
+                  onChange={e => setReportFilters(p => ({ ...p, teamRole: e.target.value }))}>
+                  <MenuItem value="" sx={{ fontSize: "0.82rem" }}>All roles</MenuItem>
+                  {["inspector", "senior_inspector", "lead_inspector", "supervisor"].map(r => (
+                    <MenuItem key={r} value={r} sx={{ fontSize: "0.82rem" }}>{r.replace(/_/g, " ")}</MenuItem>
+                  ))}
                 </Select>
               </FormControl>
             )}
-            {reportType === "inspections" && (
-              <FormControl fullWidth size="small">
-                <InputLabel>Inspection Status</InputLabel>
-                <Select
-                  value={reportFilters.status || ""}
-                  onChange={(e) =>
-                    setReportFilters({
-                      ...reportFilters,
-                      status: e.target.value,
-                    })
-                  }
-                  label="Inspection Status"
-                >
-                  <MenuItem value="">All Status</MenuItem>
-                  <MenuItem value="pending">Pending</MenuItem>
-                  <MenuItem value="in_progress">In Progress</MenuItem>
-                  <MenuItem value="completed">Completed</MenuItem>
-                  <MenuItem value="approved">Approved</MenuItem>
-                  <MenuItem value="rejected">Rejected</MenuItem>
+
+            {(reportType === "inspections" || reportType === "assignments") && (
+              <FormControl size="small" fullWidth>
+                <InputLabel sx={{ fontSize: "0.82rem" }}>Status</InputLabel>
+                <Select value={reportFilters.status || ""} label="Status" sx={{ fontSize: "0.82rem" }}
+                  onChange={e => setReportFilters(p => ({ ...p, status: e.target.value }))}>
+                  <MenuItem value="" sx={{ fontSize: "0.82rem" }}>All</MenuItem>
+                  {["pending", "completed", "overdue", "in_review"].map(s => (
+                    <MenuItem key={s} value={s} sx={{ fontSize: "0.82rem" }}>{s.replace(/_/g, " ")}</MenuItem>
+                  ))}
                 </Select>
               </FormControl>
             )}
+
           </Stack>
         </DialogContent>
-        <DialogActions sx={{ p: 2, pt: 0, gap: 1 }}>
-          <Button
-            onClick={() => setFilterDialogOpen(false)}
-            sx={{ color: colors.textSecondary }}
-          >
+        <DialogActions sx={{ p: 2, pt: 1, gap: 1 }}>
+          <Button onClick={() => { setReportFilters({}); }}
+            sx={{ textTransform: "none", fontSize: "0.78rem", color: T.inkLight }}>
+            Clear filters
+          </Button>
+          <Button onClick={() => setFilterOpen(false)}
+            sx={{ textTransform: "none", fontSize: "0.78rem", color: T.inkLight }}>
             Cancel
           </Button>
-          <Button
-            variant="contained"
-            onClick={handleGenerateReport}
-            disabled={loading}
-            sx={{ bgcolor: colors.primary }}
-          >
-            {loading ? <CircularProgress size={20} /> : "Generate Report"}
+          <Button onClick={handleGenerate} disabled={generating} variant="contained"
+            sx={{ bgcolor: T.ink, borderRadius: "10px", textTransform: "none", fontSize: "0.78rem", fontWeight: 600, "&:hover": { bgcolor: T.inkMid } }}>
+            {generating ? <CircularProgress size={16} color="inherit" /> : "Generate"}
           </Button>
         </DialogActions>
       </Dialog>
 
       {/* Toast */}
-      <Snackbar
-        open={toast.open}
-        autoHideDuration={4000}
-        onClose={closeToast}
-        anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
-        sx={{ bottom: { xs: 72, sm: 80, md: 24 } }}
-      >
-        <Alert
-          onClose={closeToast}
-          severity={toast.severity}
-          variant="filled"
-          sx={{ borderRadius: 2, fontSize: { xs: "0.7rem", sm: "0.75rem" } }}
-        >
+      <Snackbar open={toast.open} autoHideDuration={4000} onClose={closeToast}
+        anchorOrigin={{ vertical: "bottom", horizontal: "right" }}>
+        <Alert onClose={closeToast} severity={toast.severity} variant="filled"
+          sx={{ borderRadius: "12px", fontSize: "0.78rem" }}>
           {toast.message}
         </Alert>
       </Snackbar>
     </Box>
   );
-}
+};
+
+export default ReportsDashboard;

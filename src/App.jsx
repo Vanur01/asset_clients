@@ -1,4 +1,4 @@
-// App.jsx - Fixed: super_admin treated as admin everywhere
+// App.jsx - Complete updated version with correct route order
 import React from "react";
 import {
   BrowserRouter as Router,
@@ -19,8 +19,9 @@ import { ChecklistBuilderProvider } from "./context/ChecklistBuilderContext";
 import { RequestChecklistProvider } from "./context/RequestChecklistContext";
 import { AssignmentProvider } from "./context/AssignmentContext";
 import { AssetRequestProvider } from "./context/AssetRequestContext";
-import TeamAssignmentProvider from "./context/TeamAssignmentcontext";
+import TeamAssignmentProvider from "./context/TeamAssignmentContext";
 import { ContactInquiryProvider } from "./context/InquiryContext";
+import { RecycleBinProvider } from "./context/RecycleBinContext";
 
 // Import pages
 import Login from "./components/Login";
@@ -47,7 +48,9 @@ import AssetView from "./pages/AssetView";
 import EditAsset from "./pages/EditAsset";
 import CloneAssets from "./pages/CloneAssetList";
 import MyTasks from "./pages/MyTask";
+import TaskDetails from "./pages/TaskDetails";
 import InspectionHistory from "./pages/Inspectionhistory";
+import InspectionHistoryDetails from "./pages/InspectionHistoryDetails";
 import MyRequests from "./pages/Myrequests";
 import AssetRequestsApp from "./pages/AssetRequest";
 import CreateAssetRequest from "./pages/CreateAssetRequest";
@@ -61,6 +64,7 @@ import AssetCategoryPage from "./pages/AssetCategory";
 import RolesManagement from "./pages/RolesManagement";
 import DepartmentsManagement from "./pages/DepartmentsManagement";
 import LocationsManagement from "./pages/LocationsManagement";
+import RecycleBin from "./pages/Recyclebin";
 
 // ==================== APP PROVIDERS ====================
 const AppProviders = ({ children }) => (
@@ -79,7 +83,9 @@ const AppProviders = ({ children }) => (
                           <AssetRequestProvider>
                             <TeamAssignmentProvider>
                               <ContactInquiryProvider>
-                                {children}
+                                <RecycleBinProvider>
+                                  {children}
+                                </RecycleBinProvider>
                               </ContactInquiryProvider>
                             </TeamAssignmentProvider>
                           </AssetRequestProvider>
@@ -98,9 +104,6 @@ const AppProviders = ({ children }) => (
 );
 
 // ==================== ROLE HELPER ====================
-// FIX: super_admin has all privileges that admin has.
-// Normalise the user's role before checking allowedRoles so that
-// every route that lists "admin" automatically accepts "super_admin" too.
 const effectiveRole = (role) => {
   if (role === "super_admin") return "admin";
   return role;
@@ -149,14 +152,20 @@ const ProtectedRoute = ({ children, allowedRoles }) => {
     return <Navigate to="/login" replace />;
   }
 
-  // FIX: normalise super_admin → admin for role checks
   const role = effectiveRole(user.role);
-  console.log("User role:", user.role, "→ effective:", role, "Allowed roles:", allowedRoles);
+  console.log(
+    "User role:",
+    user.role,
+    "→ effective:",
+    role,
+    "Allowed roles:",
+    allowedRoles,
+  );
 
   if (!allowedRoles.includes(role)) {
     console.log("Role not allowed, redirecting based on role");
     if (role === "admin") return <Navigate to="/dashboard" replace />;
-    if (role === "team")  return <Navigate to="/team" replace />;
+    if (role === "team") return <Navigate to="/team" replace />;
     return <Navigate to="/login" replace />;
   }
 
@@ -175,7 +184,7 @@ export default function App() {
           <Route path="/forgot-password" element={<ForgotPassword />} />
           <Route path="/reset-password" element={<ResetPassword />} />
 
-          {/* ==================== DASHBOARD ROUTES ==================== */}
+          {/* ==================== ADMIN DASHBOARD ==================== */}
           <Route
             path="/dashboard"
             element={
@@ -187,11 +196,60 @@ export default function App() {
             }
           />
 
-          {/* ==================== REPORTS ROUTES ==================== */}
+          {/* ==================== TEAM ROUTES (Specific first, then general) ==================== */}
+          {/* Task Details - Specific route with ID parameter */}
           <Route
-            path="/admin/reports"
+            path="/team/task/:id"
             element={
-              <ProtectedRoute allowedRoles={["admin", "team"]}>
+              <ProtectedRoute allowedRoles={["team"]}>
+                <DashboardLayout>
+                  <TaskDetails />
+                </DashboardLayout>
+              </ProtectedRoute>
+            }
+          />
+
+          {/* Inspection Details - Specific route with ID parameter */}
+          <Route
+            path="/team/inspection/:id"
+            element={
+              <ProtectedRoute allowedRoles={["team"]}>
+                <DashboardLayout>
+                  <InspectionHistoryDetails />
+                </DashboardLayout>
+              </ProtectedRoute>
+            }
+          />
+
+          {/* Inspection History - List view */}
+          <Route
+            path="/team/history"
+            element={
+              <ProtectedRoute allowedRoles={["team"]}>
+                <DashboardLayout>
+                  <InspectionHistory />
+                </DashboardLayout>
+              </ProtectedRoute>
+            }
+          />
+
+          {/* Team Profile */}
+          <Route
+            path="/team/profile"
+            element={
+              <ProtectedRoute allowedRoles={["team"]}>
+                <DashboardLayout>
+                  <TeamProfile />
+                </DashboardLayout>
+              </ProtectedRoute>
+            }
+          />
+
+          {/* Team Reports */}
+          <Route
+            path="/team/reports"
+            element={
+              <ProtectedRoute allowedRoles={["team"]}>
                 <DashboardLayout>
                   <ReportsPage />
                 </DashboardLayout>
@@ -199,10 +257,35 @@ export default function App() {
             }
           />
 
+          {/* Team My Requests */}
           <Route
-            path="/team/reports"
+            path="/team/my-requests"
             element={
               <ProtectedRoute allowedRoles={["team"]}>
+                <DashboardLayout>
+                  <MyRequests />
+                </DashboardLayout>
+              </ProtectedRoute>
+            }
+          />
+
+          {/* Team Dashboard - General team route (should be last) */}
+          <Route
+            path="/team"
+            element={
+              <ProtectedRoute allowedRoles={["team"]}>
+                <DashboardLayout>
+                  <MyTasks />
+                </DashboardLayout>
+              </ProtectedRoute>
+            }
+          />
+
+          {/* ==================== REPORTS ROUTES ==================== */}
+          <Route
+            path="/admin/reports"
+            element={
+              <ProtectedRoute allowedRoles={["admin"]}>
                 <DashboardLayout>
                   <ReportsPage />
                 </DashboardLayout>
@@ -226,7 +309,7 @@ export default function App() {
           <Route
             path="/admin/audit-logs"
             element={
-              <ProtectedRoute allowedRoles={["admin"]}>
+              <ProtectedRoute allowedRoles={["admin", "team", "super_admin"]}>
                 <DashboardLayout>
                   <AuditLogs />
                 </DashboardLayout>
@@ -249,7 +332,7 @@ export default function App() {
           <Route
             path="/admin/checklists/clone"
             element={
-              <ProtectedRoute allowedRoles={["admin"]}>
+              <ProtectedRoute allowedRoles={["admin", "super_admin"]}>
                 <DashboardLayout>
                   <CloneChecklist />
                 </DashboardLayout>
@@ -260,7 +343,7 @@ export default function App() {
           <Route
             path="/admin/create-checklist/global"
             element={
-              <ProtectedRoute allowedRoles={["admin"]}>
+              <ProtectedRoute allowedRoles={["admin", "super_admin"]}>
                 <DashboardLayout>
                   <GlobalChecklist />
                 </DashboardLayout>
@@ -271,7 +354,7 @@ export default function App() {
           <Route
             path="/admin/create-checklist/custom"
             element={
-              <ProtectedRoute allowedRoles={["admin"]}>
+              <ProtectedRoute allowedRoles={["admin", "super_admin"]}>
                 <DashboardLayout>
                   <CustomChecklist />
                 </DashboardLayout>
@@ -282,7 +365,7 @@ export default function App() {
           <Route
             path="/admin/import-checklist/excel"
             element={
-              <ProtectedRoute allowedRoles={["admin"]}>
+              <ProtectedRoute allowedRoles={["admin", "super_admin"]}>
                 <DashboardLayout>
                   <ImportChecklist />
                 </DashboardLayout>
@@ -293,7 +376,7 @@ export default function App() {
           <Route
             path="/admin/assigned-checklists"
             element={
-              <ProtectedRoute allowedRoles={["admin"]}>
+              <ProtectedRoute allowedRoles={["admin", "super_admin"]}>
                 <DashboardLayout>
                   <AssignedChecklist />
                 </DashboardLayout>
@@ -329,6 +412,18 @@ export default function App() {
               <ProtectedRoute allowedRoles={["admin"]}>
                 <DashboardLayout>
                   <SubmissionDetails />
+                </DashboardLayout>
+              </ProtectedRoute>
+            }
+          />
+
+          {/* ==================== RECYCLE BIN ROUTE ==================== */}
+          <Route
+            path="/admin/checklists/recycle-bin"
+            element={
+              <ProtectedRoute allowedRoles={["admin"]}>
+                <DashboardLayout>
+                  <RecycleBin />
                 </DashboardLayout>
               </ProtectedRoute>
             }
@@ -500,52 +595,6 @@ export default function App() {
               <ProtectedRoute allowedRoles={["admin", "team"]}>
                 <DashboardLayout>
                   <AssetRequestDetails />
-                </DashboardLayout>
-              </ProtectedRoute>
-            }
-          />
-
-          {/* ==================== MY REQUESTS ROUTE ==================== */}
-          <Route
-            path="/team/my-requests"
-            element={
-              <ProtectedRoute allowedRoles={["team"]}>
-                <DashboardLayout>
-                  <MyRequests />
-                </DashboardLayout>
-              </ProtectedRoute>
-            }
-          />
-
-          {/* ==================== TEAM MEMBER ROUTES ==================== */}
-          <Route
-            path="/team"
-            element={
-              <ProtectedRoute allowedRoles={["team"]}>
-                <DashboardLayout>
-                  <MyTasks />
-                </DashboardLayout>
-              </ProtectedRoute>
-            }
-          />
-
-          <Route
-            path="/team/profile"
-            element={
-              <ProtectedRoute allowedRoles={["team"]}>
-                <DashboardLayout>
-                  <TeamProfile />
-                </DashboardLayout>
-              </ProtectedRoute>
-            }
-          />
-
-          <Route
-            path="/team/history"
-            element={
-              <ProtectedRoute allowedRoles={["team"]}>
-                <DashboardLayout>
-                  <InspectionHistory />
                 </DashboardLayout>
               </ProtectedRoute>
             }

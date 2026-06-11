@@ -1,4 +1,4 @@
-// components/Sidebar.jsx - Complete with Audit Logs
+// components/Sidebar.jsx - Complete with Audit Logs & Recycle Bin
 import React, { useState, useEffect, useCallback } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import {
@@ -45,6 +45,8 @@ import ChevronRightOutlinedIcon from "@mui/icons-material/ChevronRightOutlined";
 import SpaceDashboardOutlinedIcon from "@mui/icons-material/SpaceDashboardOutlined";
 import EmailOutlinedIcon from "@mui/icons-material/EmailOutlined";
 import ReceiptLongOutlinedIcon from "@mui/icons-material/ReceiptLongOutlined";
+import DeleteOutlineOutlinedIcon from "@mui/icons-material/DeleteOutlineOutlined";
+import RestoreFromTrashOutlinedIcon from "@mui/icons-material/RestoreFromTrashOutlined";
 import { useAuth } from "../context/AuthContexts";
 
 // Styled Components
@@ -121,6 +123,7 @@ const navItemsConfig = {
       label: "Dashboard",
       path: "/dashboard",
       roles: ["super_admin"],
+      order: 1,
     },
     {
       id: "clients",
@@ -128,6 +131,7 @@ const navItemsConfig = {
       label: "Customer Management",
       path: "/admin/clients",
       roles: ["super_admin"],
+      order: 2,
     },
     {
       id: "checklists",
@@ -135,6 +139,7 @@ const navItemsConfig = {
       label: "Checklists Builder",
       path: "/admin/checklists",
       roles: ["super_admin"],
+      order: 3,
     },
     {
       id: "assigned",
@@ -142,6 +147,7 @@ const navItemsConfig = {
       label: "Assigned Checklist",
       path: "/admin/assigned-checklists",
       roles: ["super_admin"],
+      order: 5,
     },
     {
       id: "reports",
@@ -149,6 +155,7 @@ const navItemsConfig = {
       label: "Reports and Analysis",
       path: "/admin/reports",
       roles: ["super_admin"],
+      order: 6,
     },
     {
       id: "contact-inquiries",
@@ -156,13 +163,23 @@ const navItemsConfig = {
       label: "Contact Inquiries",
       path: "/admin/contact-inquiries",
       roles: ["super_admin"],
+      order: 7,
     },
     {
       id: "audit-logs",
       icon: ReceiptLongOutlinedIcon,
-      label: "Logs",
+      label: "Audit Logs",
       path: "/admin/audit-logs",
       roles: ["super_admin"],
+      order: 8,
+    },
+    {
+      id: "recycle-bin",
+      icon: RestoreFromTrashOutlinedIcon,
+      label: "Checklist Recycle Bin",
+      path: "/admin/checklists/recycle-bin",
+      roles: ["super_admin"],
+      order: 4,
     },
   ],
   admin: [
@@ -172,6 +189,7 @@ const navItemsConfig = {
       label: "Dashboard",
       path: "/dashboard",
       roles: ["admin"],
+      order: 1,
     },
     {
       id: "team",
@@ -179,6 +197,7 @@ const navItemsConfig = {
       label: "Team Management",
       path: "/admin/team",
       roles: ["admin"],
+      order: 2,
     },
     {
       id: "checklists",
@@ -186,6 +205,7 @@ const navItemsConfig = {
       label: "Checklists Builder",
       path: "/admin/checklists",
       roles: ["admin"],
+      order: 3,
     },
     {
       id: "assigned",
@@ -193,6 +213,7 @@ const navItemsConfig = {
       label: "Assigned Checklist",
       path: "/admin/assigned-checklists",
       roles: ["admin"],
+      order: 5,
     },
     {
       id: "assets",
@@ -200,6 +221,7 @@ const navItemsConfig = {
       label: "Assets Management",
       path: "/admin/assets",
       roles: ["admin"],
+      order: 6,
     },
     {
       id: "reports",
@@ -207,13 +229,23 @@ const navItemsConfig = {
       label: "Reports and Analysis",
       path: "/admin/reports",
       roles: ["admin"],
+      order: 7,
     },
     {
       id: "audit-logs",
       icon: ReceiptLongOutlinedIcon,
-      label: "Logs",
+      label: "Audit Logs",
       path: "/admin/audit-logs",
       roles: ["admin"],
+      order: 8,
+    },
+    {
+      id: "recycle-bin",
+      icon: RestoreFromTrashOutlinedIcon,
+      label: "Checklist Recycle Bin",
+      path: "/admin/checklists/recycle-bin",
+      roles: ["admin"],
+      order: 4,
     },
   ],
   team: [
@@ -223,6 +255,7 @@ const navItemsConfig = {
       label: "My Tasks",
       path: "/team",
       roles: ["team"],
+      order: 1,
     },
     {
       id: "assets",
@@ -230,6 +263,7 @@ const navItemsConfig = {
       label: "Assets Management",
       path: "/admin/assets",
       roles: ["team"],
+      order: 2,
     },
     {
       id: "history",
@@ -237,13 +271,15 @@ const navItemsConfig = {
       label: "History",
       path: "/team/history",
       roles: ["team"],
+      order: 3,
     },
     {
       id: "audit-logs",
       icon: ReceiptLongOutlinedIcon,
-      label: "Logs",
+      label: "Audit Logs",
       path: "/admin/audit-logs",
       roles: ["team"],
+      order: 4,
     },
     {
       id: "reports",
@@ -251,6 +287,7 @@ const navItemsConfig = {
       label: "Reports",
       path: "/team/reports",
       roles: ["team"],
+      order: 5,
     },
     {
       id: "profile",
@@ -258,15 +295,22 @@ const navItemsConfig = {
       label: "Profile",
       path: "/team/profile",
       roles: ["team"],
+      order: 6,
     },
   ],
 };
 
-// Helper function to filter nav items based on user role
+// Helper function to filter and sort nav items based on user role
 export const getNavItems = (userRole) => {
-  if (userRole === "super_admin") return navItemsConfig.super_admin;
-  if (userRole === "admin") return navItemsConfig.admin;
-  if (userRole === "team") return navItemsConfig.team;
+  if (userRole === "super_admin") {
+    return [...navItemsConfig.super_admin].sort((a, b) => a.order - b.order);
+  }
+  if (userRole === "admin") {
+    return [...navItemsConfig.admin].sort((a, b) => a.order - b.order);
+  }
+  if (userRole === "team") {
+    return [...navItemsConfig.team].sort((a, b) => a.order - b.order);
+  }
   return [];
 };
 
@@ -304,6 +348,10 @@ export default function Sidebar({ mobileOpen, onDrawerToggle }) {
   const [bottomNavValue, setBottomNavValue] = useState(0);
 
   const navItems = getNavItems(user?.role);
+
+  // Check if user can access recycle bin
+  const canAccessRecycleBin =
+    user?.role === "super_admin" || user?.role === "admin";
 
   useEffect(() => {
     if (!authLoading && !isAuthenticated) navigate("/login");
@@ -474,6 +522,8 @@ export default function Sidebar({ mobileOpen, onDrawerToggle }) {
       >
         {navItems.map(({ id, icon: Icon, label, path }) => {
           const isActive = activeItem === id || location.pathname === path;
+          const isRecycleBin = id === "recycle-bin";
+
           return (
             <Tooltip
               key={id}
@@ -495,9 +545,14 @@ export default function Sidebar({ mobileOpen, onDrawerToggle }) {
                     : "transparent",
                   color: isActive
                     ? theme.palette.primary.main
-                    : theme.palette.text.secondary,
+                    : isRecycleBin && !isActive
+                      ? theme.palette.text.secondary
+                      : theme.palette.text.secondary,
                   "&:hover": {
-                    backgroundColor: alpha(theme.palette.primary.main, 0.05),
+                    backgroundColor:
+                      isRecycleBin && !isActive
+                        ? alpha(theme.palette.warning.main, 0.05)
+                        : alpha(theme.palette.primary.main, 0.05),
                     transform: "translateX(4px)",
                   },
                   transition: "all 0.2s ease",
@@ -697,11 +752,19 @@ export default function Sidebar({ mobileOpen, onDrawerToggle }) {
       <List sx={{ px: { xs: 1.5, sm: 2 }, flex: 1, overflowY: "auto" }}>
         {navItems.map(({ id, icon: Icon, label, path }) => {
           const isActive = activeItem === id || location.pathname === path;
+          const isRecycleBin = id === "recycle-bin";
+
           return (
             <MobileNavItem
               key={id}
               active={isActive}
               onClick={(e) => handleNavigation(path, id, e)}
+              sx={{
+                backgroundColor:
+                  isRecycleBin && !isActive
+                    ? alpha(theme.palette.warning.main, 0.03)
+                    : undefined,
+              }}
             >
               <ListItemIcon>
                 <Icon sx={{ fontSize: { xs: 22, sm: 24 } }} />

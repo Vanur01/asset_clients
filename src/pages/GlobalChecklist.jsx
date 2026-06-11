@@ -43,6 +43,7 @@ import CloseIcon from "@mui/icons-material/Close";
 import CheckCircleIcon from "@mui/icons-material/CheckCircle";
 import SaveIcon from "@mui/icons-material/Save";
 import CalendarTodayIcon from "@mui/icons-material/CalendarToday";
+import AttachFileIcon from "@mui/icons-material/AttachFile";
 import { useChecklistBuilder } from "../context/ChecklistBuilderContext";
 import { useNavigate } from "react-router-dom";
 
@@ -81,8 +82,11 @@ const theme = createTheme({
   },
 });
 
-// IMPORTANT: type values here are the EXACT strings used in FIELD_TYPE_MAP
-// and sent as fieldType to the API. They must match the backend Mongoose enum.
+// ─────────────────────────────────────────────────────────────────────────────
+// Field type definitions
+// IMPORTANT: "type" values here are the EXACT backend enum strings.
+// "date_picker" is NOT a valid backend type – use "date".
+// ─────────────────────────────────────────────────────────────────────────────
 const FIELD_TYPES = [
   {
     type: "text_input",
@@ -120,33 +124,39 @@ const FIELD_TYPES = [
     icon: <GestureIcon sx={{ fontSize: 18, color: "#374151" }} />,
   },
   {
-    type: "date_picker",
+    type: "date", // ← backend enum value (not "date_picker")
     label: "Date Picker",
     icon: <CalendarTodayIcon sx={{ fontSize: 18, color: "#374151" }} />,
   },
+  {
+    type: "file_upload",
+    label: "File Upload",
+    icon: <AttachFileIcon sx={{ fontSize: 18, color: "#374151" }} />,
+  },
 ];
 
-// Build field-specific extra properties the backend requires
-function buildFieldExtras(type) {
+// Default extra properties per type
+function buildFieldDefaults(type) {
   switch (type) {
     case "dropdown":
       return { options: ["Option 1", "Option 2", "Option 3"] };
     case "rating":
-      return { ratingMax: 5, ratingIcon: "star" };
+      return { validation: { min: 1, max: 5 } };
     case "checkbox":
-      return { checkboxItems: ["Item 1"], checkboxLabel: "Checkbox option" };
-    case "date_picker":
-      return { dateFormat: "YYYY-MM-DD" };
+      return { options: ["Item 1", "Item 2"] };
+    case "date":
+      return {};
     case "image_upload":
-      return { acceptedFormats: ["jpg", "png", "pdf"], maxSize: 10 };
+    case "file_upload":
+      return {};
     case "signature":
-      return { signatureType: "draw" };
+      return {};
     default:
       return {};
   }
 }
 
-// Option Editor Dialog
+// ── Option Editor Dialog ──────────────────────────────────────────────────────
 function OptionEditorDialog({ open, onClose, options, onSave }) {
   const [tempOptions, setTempOptions] = useState(
     options?.length ? options : ["Option 1", "Option 2"],
@@ -159,7 +169,7 @@ function OptionEditorDialog({ open, onClose, options, onSave }) {
 
   return (
     <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
-      <DialogTitle>Edit Dropdown Options</DialogTitle>
+      <DialogTitle>Edit Options</DialogTitle>
       <DialogContent>
         <Stack spacing={2} sx={{ mt: 1 }}>
           {tempOptions.map((option, i) => (
@@ -211,7 +221,7 @@ function OptionEditorDialog({ open, onClose, options, onSave }) {
   );
 }
 
-// Preview Dialog
+// ── Preview Dialog ────────────────────────────────────────────────────────────
 function PreviewDialog({
   open,
   onClose,
@@ -233,7 +243,9 @@ function PreviewDialog({
           <TextField
             fullWidth
             size="small"
-            placeholder={`Enter ${field.label.toLowerCase()}…`}
+            placeholder={
+              field.placeholder || `Enter ${field.label.toLowerCase()}…`
+            }
             value={values[field.id] || ""}
             onChange={(e) =>
               setValues((p) => ({ ...p, [field.id]: e.target.value }))
@@ -267,7 +279,7 @@ function PreviewDialog({
               <MenuItem value="" disabled>
                 Select an option…
               </MenuItem>
-              {(field.options || ["Option 1", "Option 2"]).map((o, i) => (
+              {(field.options || []).map((o, i) => (
                 <MenuItem key={i} value={o}>
                   {o}
                 </MenuItem>
@@ -277,33 +289,48 @@ function PreviewDialog({
         );
       case "checkbox":
         return (
-          <FormControlLabel
-            control={
-              <Checkbox
-                checked={checked[field.id] || false}
-                onChange={(e) =>
-                  setChecked((p) => ({ ...p, [field.id]: e.target.checked }))
+          <Stack spacing={0.5}>
+            {(field.options || []).map((opt, i) => (
+              <FormControlLabel
+                key={i}
+                control={
+                  <Checkbox
+                    checked={!!checked[`${field.id}_${i}`]}
+                    onChange={(e) =>
+                      setChecked((p) => ({
+                        ...p,
+                        [`${field.id}_${i}`]: e.target.checked,
+                      }))
+                    }
+                    sx={{
+                      color: "#1a4a5c",
+                      "&.Mui-checked": { color: "#1a4a5c" },
+                    }}
+                  />
                 }
-                sx={{ color: "#1a4a5c", "&.Mui-checked": { color: "#1a4a5c" } }}
+                label={opt}
               />
-            }
-            label={field.checkboxLabel || "Checkbox option"}
-          />
+            ))}
+          </Stack>
         );
       case "rating":
         return (
           <Box display="flex" alignItems="center" gap={1}>
             <Rating
               value={ratings[field.id] || 0}
+              max={field.validation?.max || 5}
               onChange={(_, v) => setRatings((p) => ({ ...p, [field.id]: v }))}
               sx={{ "& .MuiRating-iconFilled": { color: "#1a4a5c" } }}
             />
             <Typography sx={{ fontSize: 12, color: "#9ca3af" }}>
-              {ratings[field.id] ? `${ratings[field.id]}/5` : "Rate 1–5"}
+              {ratings[field.id]
+                ? `${ratings[field.id]}/${field.validation?.max || 5}`
+                : `Rate 1–${field.validation?.max || 5}`}
             </Typography>
           </Box>
         );
       case "image_upload":
+      case "file_upload":
         return (
           <Box
             sx={{
@@ -320,7 +347,9 @@ function PreviewDialog({
           >
             <ImageOutlinedIcon sx={{ fontSize: 28, color: "#d1d5db" }} />
             <Typography sx={{ fontSize: 13, color: "#9ca3af" }}>
-              Drag & drop or click to browse
+              {field.type === "file_upload"
+                ? "Click to upload file"
+                : "Drag & drop or click to browse"}
             </Typography>
           </Box>
         );
@@ -338,11 +367,11 @@ function PreviewDialog({
             }}
           >
             <Typography sx={{ fontSize: 12, color: "#9ca3af" }}>
-              Signature pad will appear here
+              Signature pad
             </Typography>
           </Box>
         );
-      case "date_picker":
+      case "date":
         return (
           <TextField
             fullWidth
@@ -378,12 +407,14 @@ function PreviewDialog({
                 {description}
               </Typography>
             )}
-            <Box display="flex" gap={1} mt={1}>
-              <Chip
-                label={category}
-                size="small"
-                sx={{ bgcolor: "#e8f4f8", color: "#1a4a5c" }}
-              />
+            <Box display="flex" gap={1} mt={1} flexWrap="wrap">
+              {category && (
+                <Chip
+                  label={category}
+                  size="small"
+                  sx={{ bgcolor: "#e8f4f8", color: "#1a4a5c" }}
+                />
+              )}
               {tags?.slice(0, 3).map((tag, i) => (
                 <Chip key={i} label={tag} size="small" variant="outlined" />
               ))}
@@ -424,10 +455,11 @@ function PreviewDialog({
                     fontSize: 14,
                     fontWeight: 600,
                     color: "#374151",
-                    mb: 1.5,
+                    mb: 1,
                   }}
                 >
                   {field.label}
+                  {field.required && " *"}
                 </Typography>
                 {renderField(field)}
               </Box>
@@ -459,13 +491,14 @@ function PreviewDialog({
   );
 }
 
-// Draggable sidebar field type
-function DraggableFieldType({ fieldType, onDragStart }) {
+// ── Draggable field type pill in sidebar ──────────────────────────────────────
+function DraggableFieldType({ fieldType, onDragStart, onAdd }) {
   return (
     <Box
       draggable
       onDragStart={(e) => onDragStart(e, fieldType)}
       onDragEnd={(e) => e.preventDefault()}
+      onClick={() => onAdd(fieldType.type)}
       sx={{
         display: "flex",
         alignItems: "center",
@@ -488,7 +521,7 @@ function DraggableFieldType({ fieldType, onDragStart }) {
   );
 }
 
-// Field card in the builder canvas
+// ── Field card in the builder canvas ─────────────────────────────────────────
 function FieldCard({
   field,
   index,
@@ -520,7 +553,7 @@ function FieldCard({
                 <MenuItem value="" disabled>
                   Select an option…
                 </MenuItem>
-                {(field.options || ["Option 1", "Option 2"]).map((o, i) => (
+                {(field.options || []).map((o, i) => (
                   <MenuItem key={i} value={o}>
                     {o}
                   </MenuItem>
@@ -536,13 +569,36 @@ function FieldCard({
             </Button>
           </Box>
         );
+      case "checkbox":
+        return (
+          <Box>
+            <Stack spacing={0.25}>
+              {(field.options || []).map((opt, i) => (
+                <FormControlLabel
+                  key={i}
+                  control={<Checkbox disabled size="small" />}
+                  label={<Typography sx={{ fontSize: 12 }}>{opt}</Typography>}
+                />
+              ))}
+            </Stack>
+            <Button
+              size="small"
+              onClick={() => setOptionsOpen(true)}
+              sx={{ mt: 0.5, fontSize: 11 }}
+            >
+              Edit Options ({field.options?.length || 0})
+            </Button>
+          </Box>
+        );
       case "text_input":
         return (
           <TextField
             fullWidth
             size="small"
             disabled
-            placeholder={`Enter ${field.label.toLowerCase()}…`}
+            placeholder={
+              field.placeholder || `Enter ${field.label.toLowerCase()}…`
+            }
           />
         );
       case "text_area":
@@ -556,16 +612,17 @@ function FieldCard({
             placeholder="Enter text…"
           />
         );
-      case "checkbox":
-        return (
-          <FormControlLabel
-            control={<Checkbox disabled />}
-            label={field.checkboxLabel || "Checkbox option"}
-          />
-        );
       case "rating":
-        return <Rating value={0} disabled />;
+        return (
+          <Box display="flex" alignItems="center" gap={1}>
+            <Rating value={0} disabled max={field.validation?.max || 5} />
+            <Typography sx={{ fontSize: 11, color: "#9ca3af" }}>
+              1 – {field.validation?.max || 5}
+            </Typography>
+          </Box>
+        );
       case "image_upload":
+      case "file_upload":
         return (
           <Box
             sx={{
@@ -580,7 +637,7 @@ function FieldCard({
           >
             <ImageOutlinedIcon sx={{ fontSize: 28, color: "#d1d5db" }} />
             <Typography sx={{ fontSize: 12, color: "#9ca3af" }}>
-              Image Upload
+              {field.type === "file_upload" ? "File Upload" : "Image Upload"}
             </Typography>
           </Box>
         );
@@ -602,7 +659,7 @@ function FieldCard({
             </Typography>
           </Box>
         );
-      case "date_picker":
+      case "date":
         return <TextField fullWidth type="date" size="small" disabled />;
       default:
         return null;
@@ -677,6 +734,18 @@ function FieldCard({
                 color: "#6b7280",
               }}
             />
+            {field.required && (
+              <Chip
+                label="required"
+                size="small"
+                sx={{
+                  fontSize: 10,
+                  height: 18,
+                  bgcolor: "#fef2f2",
+                  color: "#ef4444",
+                }}
+              />
+            )}
           </Box>
           <IconButton
             size="small"
@@ -688,7 +757,9 @@ function FieldCard({
         </Box>
         {renderPreview()}
       </Box>
-      {field.type === "dropdown" && (
+
+      {/* Option editor for dropdown & checkbox */}
+      {(field.type === "dropdown" || field.type === "checkbox") && (
         <OptionEditorDialog
           open={optionsOpen}
           onClose={() => setOptionsOpen(false)}
@@ -700,26 +771,36 @@ function FieldCard({
   );
 }
 
-// Main component
+// ── Main Component ────────────────────────────────────────────────────────────
 export default function GlobalChecklistBuilder() {
   const navigate = useNavigate();
-  const { createChecklist, loading, error, clearMessages } =
-    useChecklistBuilder();
+  const {
+    createChecklist,
+    loading,
+    error,
+    clearMessages,
+    prepareChecklistPayload,
+  } = useChecklistBuilder();
 
+  // ── Form state ────────────────────────────────────────────────────────────
   const [checklistName, setChecklistName] = useState(
     "Global Safety Inspection",
   );
   const [description, setDescription] = useState(
     "Standard safety checklist available to all users",
   );
-  const [category, setCategory] = useState("Safety");
-  const [subcategory, setSubcategory] = useState("General");
+  const [category, setCategory] = useState("safety");
   const [tags, setTags] = useState(["safety", "inspection", "global"]);
   const [tagInput, setTagInput] = useState("");
+  const [globalScope, setGlobalScope] = useState("all_workspaces");
   const [fields, setFields] = useState([]);
   const [counter, setCounter] = useState(1);
+
+  // ── Drag state ────────────────────────────────────────────────────────────
   const [draggedFieldIndex, setDraggedFieldIndex] = useState(null);
   const [draggedFieldType, setDraggedFieldType] = useState(null);
+
+  // ── UI state ──────────────────────────────────────────────────────────────
   const [previewOpen, setPreviewOpen] = useState(false);
   const [snackbar, setSnackbar] = useState({
     open: false,
@@ -730,16 +811,18 @@ export default function GlobalChecklistBuilder() {
   const showSnack = (message, severity = "success") =>
     setSnackbar({ open: true, message, severity });
 
+  // ── Add field ─────────────────────────────────────────────────────────────
   const addField = (type) => {
     const config = FIELD_TYPES.find((f) => f.type === type);
+    if (!config) return;
     const newField = {
       id: `field_${counter}`,
-      type: type, // stored as-is; must be a valid FIELD_TYPE_MAP key
+      type, // already correct backend enum value
       label: config.label,
       required: false,
       placeholder: `Enter ${config.label.toLowerCase()}…`,
       order: fields.length,
-      ...buildFieldExtras(type),
+      ...buildFieldDefaults(type),
     };
     setFields((prev) => [...prev, newField]);
     setCounter((c) => c + 1);
@@ -761,7 +844,7 @@ export default function GlobalChecklistBuilder() {
     }
   };
 
-  // Drag – reorder fields
+  // ── Drag – reorder fields ─────────────────────────────────────────────────
   const handleFieldDragStart = (e, index) => {
     setDraggedFieldIndex(index);
     e.dataTransfer.effectAllowed = "move";
@@ -777,7 +860,7 @@ export default function GlobalChecklistBuilder() {
     setDraggedFieldIndex(null);
   };
 
-  // Drag – add new field from sidebar
+  // ── Drag – add from sidebar ───────────────────────────────────────────────
   const handleFieldTypeDragStart = (e, fieldType) => {
     setDraggedFieldType(fieldType);
     e.dataTransfer.effectAllowed = "copy";
@@ -790,6 +873,7 @@ export default function GlobalChecklistBuilder() {
     }
   };
 
+  // ── Save ──────────────────────────────────────────────────────────────────
   const handleSave = async () => {
     if (!checklistName.trim()) {
       showSnack("Please enter a checklist name", "error");
@@ -800,94 +884,53 @@ export default function GlobalChecklistBuilder() {
       return;
     }
 
-    // Build the API payload – field types are already the correct enum strings
-    const sectionFields = fields.map((field, index) => {
-      // Base field object with all required properties
-      const baseField = {
-        label: field.label,
-        fieldType: field.type, // direct, no mapping needed – types are already API enum values
-        isRequired: field.required || false,
-        placeholder: field.placeholder || `Enter ${field.label.toLowerCase()}…`,
-        order: index,
-        columnWidth: 12,
-      };
-
-      // Add type-specific properties
-      switch (field.type) {
-        case "dropdown":
-          return {
-            ...baseField,
-            options: field.options || ["Option 1", "Option 2", "Option 3"],
-          };
-        case "rating":
-          return {
-            ...baseField,
-            ratingMax: field.ratingMax || 5,
-            ratingIcon: field.ratingIcon || "star",
-          };
-        case "checkbox":
-          return {
-            ...baseField,
-            checkboxItems: field.checkboxItems || ["Item 1"],
-            checkboxLabel: field.checkboxLabel || "Checkbox option",
-          };
-        case "date_picker":
-          return {
-            ...baseField,
-            dateFormat: field.dateFormat || "YYYY-MM-DD",
-          };
-        case "image_upload":
-          return {
-            ...baseField,
-            acceptedFormats: field.acceptedFormats || ["jpg", "png", "pdf"],
-            maxSize: field.maxSize || 10,
-          };
-        case "signature":
-          return {
-            ...baseField,
-            signatureType: field.signatureType || "draw",
-          };
-        default:
-          return baseField;
+    // Validate rating fields have min/max
+    for (const f of fields) {
+      if (f.type === "rating") {
+        if (!f.validation?.min || !f.validation?.max) {
+          showSnack(
+            `Rating field "${f.label}" must have min and max values`,
+            "error",
+          );
+          return;
+        }
       }
-    });
+      if (
+        (f.type === "dropdown" || f.type === "checkbox") &&
+        (!f.options || f.options.length === 0)
+      ) {
+        showSnack(`Field "${f.label}" must have at least one option`, "error");
+        return;
+      }
+    }
 
-    const checklistData = {
+    // Use prepareChecklistPayload to build the correct API shape.
+    // This converts UI fields → backend field objects (flat fields[], not sections[]).
+    const payload = prepareChecklistPayload({
       name: checklistName.trim(),
       description: description.trim(),
-      category,
-      subcategory,
-      type: "global",
+      checklistType: "global", // ← correct key for backend
+      isGlobal: true,
+      globalScope,
+      category: category.trim() || "general",
       tags,
-      status: "active",
+      status: "published",
       settings: {
         showProgressBar: true,
-        showSectionNumbers: true,
         allowSaveDraft: true,
-        autoSave: false,
         confirmationMessage: "Thank you for completing the checklist!",
-        emailNotifications: false,
       },
-      sections: [
-        {
-          sectionTitle: "Checklist Fields",
-          sectionDescription: description.trim(),
-          order: 0,
-          fields: sectionFields,
-        },
-      ],
-    };
+      fields, // prepareChecklistPayload converts these
+    });
 
     console.log("=== SAVING GLOBAL CHECKLIST ===");
-    console.log("Fields count:", fields.length);
-    console.log("Section fields count:", sectionFields.length);
-    console.log("Full Payload:", JSON.stringify(checklistData, null, 2));
+    console.log("Payload:", JSON.stringify(payload, null, 2));
 
-    const result = await createChecklist(checklistData);
+    const result = await createChecklist(payload);
 
     if (result.success) {
-      console.log("Created ID:", result.data?._id || result.data?.data?._id);
-      console.log("Response:", result);
+      const id = result.data?.data?._id || result.data?._id;
+      console.log("Created ID:", id);
       showSnack("Global checklist created successfully!");
       setTimeout(() => navigate("/admin/checklists"), 2000);
     } else {
@@ -900,6 +943,7 @@ export default function GlobalChecklistBuilder() {
     if (error) showSnack(error, "error");
   }, [error]);
 
+  // ── Render ────────────────────────────────────────────────────────────────
   return (
     <ThemeProvider theme={theme}>
       <CssBaseline />
@@ -908,7 +952,7 @@ export default function GlobalChecklistBuilder() {
         <Box
           sx={{
             bgcolor: "#fff",
-            borderBottom: "1px solid #e5e7eb",
+            border: "1px solid #e5e7eb",
             px: 4,
             py: 1.8,
             borderRadius: "10px",
@@ -1014,24 +1058,11 @@ export default function GlobalChecklistBuilder() {
               <TextField
                 fullWidth
                 variant="standard"
-                placeholder="e.g., Safety, Quality, Compliance"
+                placeholder="e.g., safety, quality, compliance"
                 value={category}
                 onChange={(e) => setCategory(e.target.value)}
                 sx={{ mb: 2.5 }}
               />
-
-              <Typography sx={{ fontSize: 12.5, fontWeight: 600, mb: 0.7 }}>
-                Subcategory
-              </Typography>
-              <TextField
-                fullWidth
-                variant="standard"
-                placeholder="e.g., General, Daily, Weekly"
-                value={subcategory}
-                onChange={(e) => setSubcategory(e.target.value)}
-                sx={{ mb: 2.5 }}
-              />
-
               <Typography sx={{ fontSize: 12.5, fontWeight: 600, mb: 0.7 }}>
                 Tags
               </Typography>
@@ -1081,6 +1112,7 @@ export default function GlobalChecklistBuilder() {
               <Typography sx={{ fontSize: 13.5, fontWeight: 700, mb: 2.5 }}>
                 Checklist Fields ({fields.length})
               </Typography>
+
               {fields.length === 0 ? (
                 <Box
                   sx={{
@@ -1096,7 +1128,7 @@ export default function GlobalChecklistBuilder() {
                     No fields added yet
                   </Typography>
                   <Typography sx={{ fontSize: 13, color: "#c4c9d4" }}>
-                    Drag field types from the right panel or click to add
+                    Drag field types from the right panel or click a type to add
                   </Typography>
                 </Box>
               ) : (
@@ -1129,7 +1161,7 @@ export default function GlobalChecklistBuilder() {
                 p: "22px 20px",
               }}
             >
-              <Typography sx={{ fontSize: 14, fontWeight: 700, mb: 2.5 }}>
+              <Typography sx={{ fontSize: 14, fontWeight: 700, mb: 0.5 }}>
                 Field Types
               </Typography>
               <Typography
@@ -1140,7 +1172,7 @@ export default function GlobalChecklistBuilder() {
                   fontStyle: "italic",
                 }}
               >
-                Drag to the canvas, or click to add
+                Click to add, or drag to canvas
               </Typography>
               <Box sx={{ display: "flex", flexDirection: "column" }}>
                 {FIELD_TYPES.map((ft, i) => (
@@ -1148,25 +1180,12 @@ export default function GlobalChecklistBuilder() {
                     <DraggableFieldType
                       fieldType={ft}
                       onDragStart={handleFieldTypeDragStart}
+                      onAdd={addField}
                     />
                     {i < FIELD_TYPES.length - 1 && (
                       <Divider sx={{ borderColor: "#f1f3f5" }} />
                     )}
                   </React.Fragment>
-                ))}
-              </Box>
-              <Divider sx={{ my: 2 }} />
-              <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1 }}>
-                {FIELD_TYPES.map((ft) => (
-                  <Button
-                    key={ft.type}
-                    size="small"
-                    variant="outlined"
-                    onClick={() => addField(ft.type)}
-                    sx={{ fontSize: 11 }}
-                  >
-                    {ft.label}
-                  </Button>
                 ))}
               </Box>
             </Paper>

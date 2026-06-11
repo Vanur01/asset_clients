@@ -159,7 +159,7 @@ function StatCard({ title, value, icon: Icon, color }) {
       elevation={0}
       sx={{
         borderRadius: "14px",
-        width: "282px",
+        width: "270px",
         border: `1px solid ${C.border}`,
         transition: "all 0.2s",
         "&:hover": {

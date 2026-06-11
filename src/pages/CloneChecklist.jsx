@@ -1,14 +1,14 @@
 // pages/admin/CloneChecklist.jsx
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import {
   Box,
   Container,
   Typography,
   Button,
-  InputBase,
+  TextField,
+  InputAdornment,
   Paper,
   alpha,
-  useTheme,
   useMediaQuery,
   IconButton,
   Tooltip,
@@ -22,15 +22,19 @@ import {
   Stack,
   Pagination,
   Dialog,
-  DialogTitle,
   DialogContent,
   DialogActions,
-  TextField,
   CircularProgress,
-  Alert,
   Snackbar,
+  Alert,
+  Skeleton,
+  Avatar,
+  Divider,
+  Fade,
+  Collapse,
+  Grid,
 } from "@mui/material";
-import { styled } from "@mui/material/styles";
+import { createTheme, ThemeProvider, styled } from "@mui/material/styles";
 import { useNavigate } from "react-router-dom";
 import { useChecklistBuilder } from "../context/ChecklistBuilderContext";
 
@@ -41,765 +45,1438 @@ import SecurityIcon from "@mui/icons-material/Security";
 import ConstructionIcon from "@mui/icons-material/Construction";
 import LocationCityIcon from "@mui/icons-material/LocationCity";
 import VerifiedIcon from "@mui/icons-material/Verified";
-import AssignmentTurnedInIcon from "@mui/icons-material/AssignmentTurnedIn";
+import AssignmentIcon from "@mui/icons-material/AssignmentTurnedIn";
 import RefreshIcon from "@mui/icons-material/Refresh";
-import ChevronRightIcon from "@mui/icons-material/ChevronRight";
-import ChevronLeftIcon from "@mui/icons-material/ChevronLeft";
 import CloseIcon from "@mui/icons-material/Close";
+import CheckCircleIcon from "@mui/icons-material/CheckCircle";
+import DescriptionIcon from "@mui/icons-material/Description";
+import CalendarTodayIcon from "@mui/icons-material/CalendarToday";
+import PersonIcon from "@mui/icons-material/Person";
+import PublicIcon from "@mui/icons-material/Public";
+import ErrorOutlineIcon from "@mui/icons-material/ErrorOutline";
+import TagIcon from "@mui/icons-material/Tag";
+import LayersIcon from "@mui/icons-material/Layers";
+import WarningAmberIcon from "@mui/icons-material/WarningAmber";
+import CategoryIcon from "@mui/icons-material/Category";
+import AutoAwesomeIcon from "@mui/icons-material/AutoAwesome";
+import ListAltIcon from "@mui/icons-material/ListAlt";
 
-const PageContainer = styled(Box)({
-  backgroundColor: "#f8fafb",
-  minHeight: "100vh",
-  width: "100%",
+// ─── StatCard component ───────────────────────────────────────────────────────
+const StatCard = ({ label, value, sub, icon, accent, loading }) => (
+  <Paper
+    elevation={0}
+    sx={{
+      p: 2.25,
+      height: "100%",
+      border: "1px solid",
+      borderColor: "divider",
+      borderRadius: "16px",
+      position: "relative",
+      width:"276px",
+      overflow: "hidden",
+      transition: "all 0.22s",
+      "&:hover": {
+        borderColor: accent || theme.palette.primary.main,
+        transform: "translateY(-2px)",
+        boxShadow: (t) =>
+          `0 8px 24px ${alpha(accent || t.palette.primary.main, 0.1)}`,
+      },
+      "&::before": {
+        content: '""',
+        position: "absolute",
+        top: 0,
+        left: 0,
+        right: 0,
+        height: "3px",
+        background: accent || theme.palette.primary.main,
+        opacity: 0,
+        transition: "opacity 0.22s",
+      },
+      "&:hover::before": { opacity: 1 },
+    }}
+  >
+    <Box
+      sx={{
+        display: "flex",
+        justifyContent: "space-between",
+        alignItems: "flex-start",
+      }}
+    >
+      <Box sx={{ flex: 1, minWidth: 0 }}>
+        <Typography
+          variant="caption"
+          fontWeight={700}
+          color="text.secondary"
+          sx={{
+            textTransform: "uppercase",
+            letterSpacing: "0.07em",
+            display: "block",
+            mb: 0.75,
+            fontSize: 10.5,
+          }}
+        >
+          {label}
+        </Typography>
+        {loading ? (
+          <Skeleton width={56} height={38} sx={{ mt: 0.25 }} />
+        ) : (
+          <Typography
+            fontWeight={800}
+            fontSize={26}
+            lineHeight={1}
+            color={accent || "primary.main"}
+            sx={{ mb: 0.5 }}
+          >
+            {value}
+          </Typography>
+        )}
+        {sub &&
+          (loading ? (
+            <Skeleton width={90} height={13} />
+          ) : (
+            <Typography variant="caption" color="text.disabled" fontSize={11}>
+              {sub}
+            </Typography>
+          ))}
+      </Box>
+      <Box
+        sx={{
+          width: 42,
+          height: 42,
+          borderRadius: "13px",
+          flexShrink: 0,
+          bgcolor: alpha(accent || theme.palette.primary.main, 0.09),
+          color: accent || "primary.main",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+        }}
+      >
+        {icon}
+      </Box>
+    </Box>
+  </Paper>
+);
+
+// ─── Theme ────────────────────────────────────────────────────────────────────
+const theme = createTheme({
+  palette: {
+    primary: { main: "#0d4a5c", dark: "#092f3a", light: "#e4f1f5" },
+    success: { main: "#0A5C4B", light: "#e6f4f0" },
+    error: { main: "#C73A2B", light: "#fdf0ee" },
+    warning: { main: "#B96F0F", light: "#fdf4e7" },
+    info: { main: "#2E7D8A", light: "#e8f4f6" },
+    text: { primary: "#111d22", secondary: "#4e6872", disabled: "#98b3bc" },
+    background: { default: "#f2f7f9", paper: "#ffffff" },
+    divider: "#dde8ec",
+  },
+  typography: {
+    fontFamily: "'Sora', 'DM Sans', system-ui, sans-serif",
+    button: { textTransform: "none", fontWeight: 600 },
+  },
+  shape: { borderRadius: 14 },
+  components: {
+    MuiButton: {
+      styleOverrides: {
+        root: { boxShadow: "none", "&:hover": { boxShadow: "none" } },
+      },
+    },
+    MuiPaper: { styleOverrides: { root: { backgroundImage: "none" } } },
+    MuiOutlinedInput: { styleOverrides: { root: { borderRadius: 12 } } },
+    MuiDialog: { styleOverrides: { paper: { borderRadius: 20 } } },
+  },
 });
 
-const SearchInput = styled(InputBase)(({ theme }) => ({
-  width: "100%",
-  backgroundColor: "#f8fafc",
-  borderRadius: "10px",
-  border: "1px solid #e2e8f0",
-  transition: "all 0.2s ease",
-  "& .MuiInputBase-input": {
-    padding: theme.spacing(1.2, 1.2, 1.2, 5),
-    fontSize: "0.8rem",
-    color: "#1e293b",
-    "&::placeholder": { color: "#94a3b8", opacity: 1 },
-  },
-  "&:hover, &:focus-within": {
-    borderColor: "#003544",
-    boxShadow: "0 2px 8px rgba(0,53,68,0.08)",
-    backgroundColor: "#ffffff",
-  },
+// ─── Styled helpers ───────────────────────────────────────────────────────────
+const TH = styled(TableCell)(() => ({
+  padding: "11px 16px",
+  fontSize: 11,
+  fontWeight: 700,
+  letterSpacing: "0.07em",
+  textTransform: "uppercase",
+  color: theme.palette.text.disabled,
+  backgroundColor: alpha(theme.palette.background.default, 0.9),
+  borderBottom: `1.5px solid ${theme.palette.divider}`,
+  whiteSpace: "nowrap",
 }));
 
-const StatusChip = styled(Box)(({ status }) => ({
-  display: "inline-flex",
-  alignItems: "center",
-  gap: 4,
-  padding: "3px 10px",
-  borderRadius: "12px",
-  fontSize: "0.65rem",
-  fontWeight: 600,
-  backgroundColor:
-    status === "active"
-      ? "#e6f7e6"
-      : status === "draft"
-        ? "#fef9c3"
-        : "#fef3c7",
-  color:
-    status === "active"
-      ? "#166534"
-      : status === "draft"
-        ? "#854d0e"
-        : "#92400e",
-  border: `1px solid ${status === "active" ? "#bbf7d0" : status === "draft" ? "#fde68a" : "#fde68a"}`,
+const TD = styled(TableCell)(() => ({
+  padding: "13px 16px",
+  fontSize: 13,
+  borderBottom: `1px solid ${alpha(theme.palette.divider, 0.6)}`,
+  verticalAlign: "middle",
 }));
 
-const CloneButton = styled(Button)({
-  backgroundColor: "#003544",
-  color: "#ffffff",
-  fontSize: "0.7rem",
-  fontWeight: 600,
-  padding: "4px 12px",
-  borderRadius: "6px",
-  minWidth: "60px",
-  "&:hover": { backgroundColor: "#004d61" },
-  "&:active": { transform: "scale(0.95)" },
-});
-
-const StyledTableHead = styled(TableHead)(({ theme }) => ({
-  backgroundColor: "#f8fafc",
-  position: "sticky",
-  top: 0,
-  zIndex: 5,
-  "& .MuiTableCell-head": {
-    fontSize: "0.65rem",
-    fontWeight: 700,
-    color: "#64748b",
-    textTransform: "uppercase",
-    letterSpacing: "0.3px",
-    padding: theme.spacing(1.2, 1.5),
-    borderBottom: "1px solid #e2e8f0",
-    backgroundColor: "#f8fafc",
-  },
+const HoverRow = styled(TableRow)(() => ({
+  transition: "background 0.15s",
+  "&:hover": { backgroundColor: alpha(theme.palette.primary.main, 0.028) },
+  "&:last-child td": { borderBottom: "none" },
 }));
 
-const StyledTableRow = styled(TableRow)(({ theme }) => ({
-  "&:hover": { backgroundColor: "#f8fafc" },
-  "& .MuiTableCell-body": {
-    padding: theme.spacing(1.2, 1.5),
-    fontSize: "0.8rem",
-    borderBottom: "1px solid #edf2f7",
-    color: "#334155",
-  },
-}));
+// ─── Category icon ────────────────────────────────────────────────────────────
+const CAT_ICONS = {
+  safety: <SecurityIcon sx={{ fontSize: 18 }} />,
+  equipment: <ConstructionIcon sx={{ fontSize: 18 }} />,
+  site: <LocationCityIcon sx={{ fontSize: 18 }} />,
+  quality: <VerifiedIcon sx={{ fontSize: 18 }} />,
+  compliance: <VerifiedIcon sx={{ fontSize: 18 }} />,
+  maintenance: <ConstructionIcon sx={{ fontSize: 18 }} />,
+  audit: <AssignmentIcon sx={{ fontSize: 18 }} />,
+  environmental: <PublicIcon sx={{ fontSize: 18 }} />,
+};
 
-const MobileCard = styled(Paper)(({ theme }) => ({
-  backgroundColor: "#ffffff",
-  borderRadius: "10px",
-  padding: theme.spacing(1.5),
-  marginBottom: theme.spacing(1.5),
-  border: "1px solid #edf2f7",
-  transition: "all 0.2s ease",
-  "&:last-child": { marginBottom: 0 },
-}));
+const CatAvatar = ({ category }) => (
+  <Avatar
+    sx={{
+      width: 38,
+      height: 38,
+      borderRadius: "12px",
+      bgcolor: alpha(theme.palette.primary.main, 0.1),
+      color: theme.palette.primary.main,
+      flexShrink: 0,
+    }}
+  >
+    {CAT_ICONS[category?.toLowerCase()] || (
+      <AssignmentIcon sx={{ fontSize: 18 }} />
+    )}
+  </Avatar>
+);
 
-// ─── Clone Name Dialog ────────────────────────────────────────────
+// ─── Status badge ─────────────────────────────────────────────────────────────
+const STATUS_MAP = {
+  published: { label: "Published", color: "success" },
+  active: { label: "Active", color: "success" },
+  draft: { label: "Draft", color: "warning" },
+  archived: { label: "Archived", color: "default" },
+  inactive: { label: "Inactive", color: "default" },
+  pending: { label: "Pending", color: "info" },
+};
+const StatusBadge = ({ status }) => {
+  const cfg = STATUS_MAP[status?.toLowerCase()] || {
+    label: status || "—",
+    color: "default",
+  };
+  return (
+    <Chip
+      label={cfg.label}
+      size="small"
+      color={cfg.color}
+      sx={{
+        height: 22,
+        fontSize: 11,
+        fontWeight: 700,
+        "& .MuiChip-label": { px: 1.25 },
+      }}
+    />
+  );
+};
+
+// ─── Type badge ───────────────────────────────────────────────────────────────
+const TypeBadge = ({ type }) => (
+  <Chip
+    label={type || "custom"}
+    size="small"
+    variant="outlined"
+    icon={
+      type === "global" ? (
+        <PublicIcon sx={{ fontSize: "11px !important" }} />
+      ) : undefined
+    }
+    sx={{
+      height: 22,
+      fontSize: 11,
+      fontWeight: 600,
+      "& .MuiChip-label": { px: 1.25 },
+      borderColor:
+        type === "global" ? theme.palette.info.main : theme.palette.divider,
+      color:
+        type === "global"
+          ? theme.palette.info.main
+          : theme.palette.text.secondary,
+    }}
+  />
+);
+
+// ─── formatDate ───────────────────────────────────────────────────────────────
+const fmt = (d) =>
+  d
+    ? new Date(d).toLocaleDateString("en-US", {
+        month: "short",
+        day: "numeric",
+        year: "numeric",
+      })
+    : "—";
+
+// ─── Empty state ──────────────────────────────────────────────────────────────
+const EmptyState = ({ searched }) => (
+  <Fade in>
+    <Box sx={{ py: 9, textAlign: "center", px: 3 }}>
+      <Box
+        sx={{
+          width: 72,
+          height: 72,
+          borderRadius: "22px",
+          mx: "auto",
+          mb: 2.5,
+          bgcolor: alpha(theme.palette.primary.main, 0.07),
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+        }}
+      >
+        <LayersIcon sx={{ fontSize: 34, color: theme.palette.primary.main }} />
+      </Box>
+      <Typography
+        fontWeight={700}
+        fontSize={16}
+        color="text.primary"
+        gutterBottom
+      >
+        {searched ? "No matching checklists" : "No cloneable checklists"}
+      </Typography>
+      <Typography
+        variant="body2"
+        color="text.secondary"
+        sx={{ maxWidth: 320, mx: "auto" }}
+      >
+        {searched
+          ? "Try different search terms or clear the search field."
+          : "Create a checklist first, then it will appear here for cloning."}
+      </Typography>
+    </Box>
+  </Fade>
+);
+
+// ─── Error state ──────────────────────────────────────────────────────────────
+const ErrorState = ({ message, onRetry }) => (
+  <Fade in>
+    <Box sx={{ py: 9, textAlign: "center", px: 3 }}>
+      <Box
+        sx={{
+          width: 72,
+          height: 72,
+          borderRadius: "22px",
+          mx: "auto",
+          mb: 2.5,
+          bgcolor: alpha(theme.palette.error.main, 0.08),
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+        }}
+      >
+        <ErrorOutlineIcon
+          sx={{ fontSize: 34, color: theme.palette.error.main }}
+        />
+      </Box>
+      <Typography
+        fontWeight={700}
+        fontSize={16}
+        color="text.primary"
+        gutterBottom
+      >
+        Failed to load checklists
+      </Typography>
+      <Typography
+        variant="body2"
+        color="text.secondary"
+        sx={{ maxWidth: 320, mx: "auto", mb: 3 }}
+      >
+        {message || "An unexpected error occurred. Please try again."}
+      </Typography>
+      <Button
+        variant="outlined"
+        startIcon={<RefreshIcon />}
+        onClick={onRetry}
+        sx={{ borderColor: "divider", color: "text.secondary" }}
+      >
+        Try Again
+      </Button>
+    </Box>
+  </Fade>
+);
+
+// ─── Table skeleton ───────────────────────────────────────────────────────────
+const TableSkeleton = () => (
+  <>
+    {[...Array(6)].map((_, i) => (
+      <HoverRow key={i}>
+        <TD>
+          <Box sx={{ display: "flex", gap: 1.5, alignItems: "center" }}>
+            <Skeleton
+              variant="rounded"
+              width={38}
+              height={38}
+              sx={{ borderRadius: "12px", flexShrink: 0 }}
+            />
+            <Box sx={{ flex: 1 }}>
+              <Skeleton width="60%" height={16} />
+              <Skeleton width="40%" height={12} sx={{ mt: 0.5 }} />
+            </Box>
+          </Box>
+        </TD>
+        <TD>
+          <Skeleton width={100} height={14} />
+        </TD>
+        <TD>
+          <Skeleton width={80} height={14} />
+        </TD>
+        <TD>
+          <Skeleton variant="rounded" width={40} height={22} />
+        </TD>
+        <TD>
+          <Skeleton variant="rounded" width={56} height={22} />
+        </TD>
+        <TD>
+          <Skeleton variant="rounded" width={56} height={22} />
+        </TD>
+        <TD>
+          <Skeleton
+            variant="rounded"
+            width={80}
+            height={32}
+            sx={{ borderRadius: "10px" }}
+          />
+        </TD>
+      </HoverRow>
+    ))}
+  </>
+);
+
+// ─── Mobile skeleton ──────────────────────────────────────────────────────────
+const MobileSkeleton = () => (
+  <Box sx={{ p: 2 }}>
+    {[...Array(4)].map((_, i) => (
+      <Paper
+        key={i}
+        sx={{ p: 2, mb: 1.5, border: "1px solid", borderColor: "divider" }}
+      >
+        <Box sx={{ display: "flex", gap: 1.5, mb: 1.5 }}>
+          <Skeleton
+            variant="rounded"
+            width={38}
+            height={38}
+            sx={{ borderRadius: "12px" }}
+          />
+          <Box sx={{ flex: 1 }}>
+            <Skeleton width="70%" height={16} />
+            <Skeleton width="45%" height={12} sx={{ mt: 0.5 }} />
+          </Box>
+        </Box>
+        <Skeleton width="100%" height={36} sx={{ borderRadius: "10px" }} />
+      </Paper>
+    ))}
+  </Box>
+);
+
+// ─── Clone Confirm Dialog ─────────────────────────────────────────────────────
 const CloneDialog = ({ open, checklist, onClose, onConfirm, loading }) => {
   const [name, setName] = useState("");
+  const [nameError, setNameError] = useState("");
+  const inputRef = useRef(null);
+
   useEffect(() => {
-    if (checklist) setName(`${checklist.name} (Clone)`);
-  }, [checklist]);
+    if (open && checklist) {
+      setName(`${checklist.name} (Clone)`);
+      setNameError("");
+      setTimeout(() => inputRef.current?.focus(), 100);
+    }
+  }, [open, checklist]);
+
+  const handleConfirm = () => {
+    const trimmed = name.trim();
+    if (!trimmed) {
+      setNameError("Clone name is required.");
+      return;
+    }
+    if (trimmed.length < 3) {
+      setNameError("Name must be at least 3 characters.");
+      return;
+    }
+    if (trimmed.length > 120) {
+      setNameError("Name must be under 120 characters.");
+      return;
+    }
+    setNameError("");
+    onConfirm(trimmed);
+  };
+
+  const handleKeyDown = (e) => {
+    if (e.key === "Enter" && !loading) handleConfirm();
+  };
+
   return (
     <Dialog
       open={open}
-      onClose={onClose}
+      onClose={!loading ? onClose : undefined}
       maxWidth="xs"
       fullWidth
-      PaperProps={{ sx: { borderRadius: "14px" } }}
     >
-      <DialogTitle sx={{ pb: 0.5, pt: 3, px: 3 }}>
+      {/* Header */}
+      <Box
+        sx={{
+          bgcolor: "primary.main",
+          px: 3,
+          pt: 3,
+          pb: 2.5,
+          borderRadius: "20px 20px 0 0",
+        }}
+      >
         <Box
           sx={{
             display: "flex",
             justifyContent: "space-between",
-            alignItems: "center",
+            alignItems: "flex-start",
           }}
         >
           <Box>
-            <Typography
-              sx={{ fontWeight: 700, fontSize: "1rem", color: "#0f172a" }}
-            >
+            <Typography fontWeight={800} fontSize={17} color="white">
               Clone Checklist
             </Typography>
-            <Typography sx={{ fontSize: "0.8rem", color: "#64748b", mt: 0.25 }}>
-              Give your clone a unique name
+            <Typography
+              fontSize={12}
+              sx={{ color: alpha("#fff", 0.65), mt: 0.3 }}
+            >
+              Give your copy a unique name
             </Typography>
           </Box>
-          <IconButton size="small" onClick={onClose} sx={{ color: "#94a3b8" }}>
+          <IconButton
+            size="small"
+            onClick={onClose}
+            disabled={loading}
+            sx={{
+              color: "white",
+              bgcolor: alpha("#fff", 0.12),
+              "&:hover": { bgcolor: alpha("#fff", 0.22) },
+            }}
+          >
             <CloseIcon fontSize="small" />
           </IconButton>
         </Box>
-      </DialogTitle>
-      <DialogContent sx={{ px: 3, pt: 2 }}>
-        <Typography
-          sx={{
-            fontSize: "0.75rem",
-            color: "#475569",
-            mb: 0.75,
-            fontWeight: 600,
-          }}
-        >
-          Clone Name *
-        </Typography>
-        <TextField
-          fullWidth
-          size="small"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          sx={{
-            "& .MuiOutlinedInput-root": {
-              borderRadius: "10px",
-              fontSize: "0.875rem",
-            },
-          }}
-        />
-        <Box
-          sx={{
-            mt: 2,
-            p: 1.5,
-            bgcolor: "#f8fafc",
-            borderRadius: "10px",
-            border: "1px solid #e2e8f0",
-          }}
-        >
-          <Typography sx={{ fontSize: "0.7rem", color: "#64748b" }}>
-            Cloning from:{" "}
-            <strong style={{ color: "#0f172a" }}>{checklist?.name}</strong>
-          </Typography>
-          <Typography sx={{ fontSize: "0.7rem", color: "#64748b" }}>
-            Type:{" "}
-            <strong style={{ color: "#0f172a" }}>{checklist?.type}</strong> ·
-            Fields:{" "}
-            <strong style={{ color: "#0f172a" }}>
-              {checklist?.totalFields || 0}
-            </strong>
-          </Typography>
-        </Box>
+      </Box>
+
+      <DialogContent sx={{ p: 3 }}>
+        <Stack spacing={2.5}>
+          {/* Source info card */}
+          <Box
+            sx={{
+              p: 2,
+              borderRadius: 2,
+              border: "1px solid",
+              borderColor: alpha(theme.palette.primary.main, 0.18),
+              bgcolor: alpha(theme.palette.primary.main, 0.03),
+            }}
+          >
+            <Typography
+              variant="caption"
+              fontWeight={700}
+              color="text.disabled"
+              sx={{
+                textTransform: "uppercase",
+                letterSpacing: "0.07em",
+                display: "block",
+                mb: 1.25,
+              }}
+            >
+              Cloning From
+            </Typography>
+            <Box
+              sx={{ display: "flex", gap: 1.5, alignItems: "center", mb: 1.5 }}
+            >
+              <CatAvatar category={checklist?.category} />
+              <Box sx={{ flex: 1, minWidth: 0 }}>
+                <Typography fontWeight={700} fontSize={14} noWrap>
+                  {checklist?.name}
+                </Typography>
+                <Typography variant="caption" color="text.secondary">
+                  {checklist?.checklistType} &nbsp;·&nbsp;
+                  {checklist?.totalFields ??
+                    checklist?.fields?.length ??
+                    0}{" "}
+                  fields &nbsp;·&nbsp; v{checklist?.version || 1}
+                </Typography>
+              </Box>
+            </Box>
+            <Divider sx={{ mb: 1.5 }} />
+            <Stack direction="row" spacing={1.5} flexWrap="wrap">
+              <Box>
+                <Typography variant="caption" color="text.disabled">
+                  Status
+                </Typography>
+                <Box sx={{ mt: 0.4 }}>
+                  <StatusBadge status={checklist?.status} />
+                </Box>
+              </Box>
+              <Box>
+                <Typography variant="caption" color="text.disabled">
+                  Category
+                </Typography>
+                <Box sx={{ mt: 0.4 }}>
+                  <Chip
+                    label={checklist?.category || "general"}
+                    size="small"
+                    sx={{
+                      height: 22,
+                      fontSize: 11,
+                      bgcolor: alpha(theme.palette.primary.main, 0.08),
+                      color: theme.palette.primary.main,
+                      fontWeight: 600,
+                      "& .MuiChip-label": { px: 1.25 },
+                    }}
+                  />
+                </Box>
+              </Box>
+              {checklist?.tags?.length > 0 && (
+                <Box>
+                  <Typography variant="caption" color="text.disabled">
+                    Tags
+                  </Typography>
+                  <Box sx={{ mt: 0.4 }}>
+                    <Typography variant="caption" color="text.secondary">
+                      {checklist.tags
+                        .slice(0, 3)
+                        .map((t) => `#${t}`)
+                        .join(" ")}
+                    </Typography>
+                  </Box>
+                </Box>
+              )}
+            </Stack>
+          </Box>
+
+          {/* Name input */}
+          <TextField
+            inputRef={inputRef}
+            fullWidth
+            label="Clone Name *"
+            value={name}
+            onChange={(e) => {
+              setName(e.target.value);
+              if (nameError) setNameError("");
+            }}
+            onKeyDown={handleKeyDown}
+            error={!!nameError}
+            helperText={nameError || `${name.length}/120 characters`}
+            placeholder="Enter a name for the cloned checklist"
+            disabled={loading}
+            size="small"
+            FormHelperTextProps={{
+              sx: {
+                color: nameError ? "error.main" : "text.disabled",
+                fontSize: 11,
+              },
+            }}
+          />
+        </Stack>
       </DialogContent>
-      <DialogActions sx={{ px: 3, pb: 3, gap: 1 }}>
+
+      <DialogActions sx={{ px: 3, pb: 3, gap: 1.5, pt: 0 }}>
         <Button
           onClick={onClose}
+          disabled={loading}
           variant="outlined"
           sx={{
-            textTransform: "none",
-            borderColor: "#e2e8f0",
-            color: "#334155",
-            borderRadius: "8px",
-            fontWeight: 500,
+            borderColor: "divider",
+            color: "text.secondary",
+            borderRadius: "10px",
           }}
         >
           Cancel
         </Button>
         <Button
-          onClick={() => onConfirm(name)}
+          onClick={handleConfirm}
           disabled={loading || !name.trim()}
           variant="contained"
-          sx={{
-            textTransform: "none",
-            bgcolor: "#003544",
-            "&:hover": { bgcolor: "#004d61" },
-            borderRadius: "8px",
-            fontWeight: 600,
-            "&:disabled": { bgcolor: "#e2e8f0" },
-          }}
+          startIcon={
+            loading ? (
+              <CircularProgress size={15} color="inherit" />
+            ) : (
+              <ContentCopyIcon sx={{ fontSize: 16 }} />
+            )
+          }
+          sx={{ borderRadius: "10px", px: 2.5, minWidth: 130 }}
         >
-          {loading ? (
-            <CircularProgress size={16} color="inherit" />
-          ) : (
-            "Create Clone"
-          )}
+          {loading ? "Creating…" : "Create Clone"}
         </Button>
       </DialogActions>
     </Dialog>
   );
 };
 
-// ─── Main Component ───────────────────────────────────────────────
+// ─── Mobile checklist card ────────────────────────────────────────────────────
+const MobileCard = ({ row, onClone }) => (
+  <Paper
+    sx={{
+      p: 2,
+      mb: 1.5,
+      border: "1px solid",
+      borderColor: "divider",
+      transition: "all 0.2s",
+      "&:hover": {
+        borderColor: "primary.main",
+        boxShadow: (t) => `0 4px 16px ${alpha(t.palette.primary.main, 0.1)}`,
+      },
+    }}
+    elevation={0}
+  >
+    <Box
+      sx={{
+        display: "flex",
+        justifyContent: "space-between",
+        alignItems: "flex-start",
+        mb: 1.5,
+      }}
+    >
+      <Box
+        sx={{
+          display: "flex",
+          gap: 1.5,
+          alignItems: "flex-start",
+          flex: 1,
+          minWidth: 0,
+        }}
+      >
+        <CatAvatar category={row.category} />
+        <Box sx={{ flex: 1, minWidth: 0 }}>
+          <Typography fontWeight={700} fontSize={14} sx={{ mb: 0.3 }} noWrap>
+            {row.name}
+          </Typography>
+          {row.description && (
+            <Typography
+              variant="caption"
+              color="text.disabled"
+              sx={{
+                display: "-webkit-box",
+                WebkitLineClamp: 1,
+                WebkitBoxOrient: "vertical",
+                overflow: "hidden",
+              }}
+            >
+              {row.description}
+            </Typography>
+          )}
+        </Box>
+      </Box>
+      <Box sx={{ ml: 1, flexShrink: 0 }}>
+        <StatusBadge status={row.status} />
+      </Box>
+    </Box>
+
+    <Box sx={{ display: "flex", gap: 1.5, flexWrap: "wrap", mb: 1.5 }}>
+      <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+        <CalendarTodayIcon sx={{ fontSize: 12, color: "text.disabled" }} />
+        <Typography variant="caption" color="text.secondary">
+          {fmt(row.createdAt)}
+        </Typography>
+      </Box>
+      <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+        <DescriptionIcon sx={{ fontSize: 12, color: "text.disabled" }} />
+        <Typography variant="caption" color="text.secondary">
+          {row.totalFields ?? row.fields?.length ?? 0} fields
+        </Typography>
+      </Box>
+      <TypeBadge type={row.checklistType} />
+    </Box>
+
+    <Button
+      fullWidth
+      variant="contained"
+      size="small"
+      startIcon={<ContentCopyIcon sx={{ fontSize: 15 }} />}
+      onClick={() => onClone(row)}
+      sx={{ borderRadius: "10px", fontSize: 13 }}
+    >
+      Clone This Checklist
+    </Button>
+  </Paper>
+);
+
+// ─── Main Component ───────────────────────────────────────────────────────────
 const CloneChecklist = () => {
-  const theme = useTheme();
   const navigate = useNavigate();
   const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
-  const { getAllChecklists, cloneChecklist, loading, clearMessages } =
-    useChecklistBuilder();
+  const { getCloneableChecklists, cloneChecklist } = useChecklistBuilder();
 
-  const [searchQuery, setSearchQuery] = useState("");
-  const [page, setPage] = useState(1);
-  const [limit] = useState(10);
-  const [cloneList, setCloneList] = useState([]);
+  // List state
+  const [rows, setRows] = useState([]);
+  const [allRows, setAllRows] = useState([]); // unfiltered snapshot for stats
   const [pagination, setPagination] = useState({
-    total: 0,
-    totalPages: 0,
     page: 1,
     limit: 10,
+    total: 0,
+    pages: 1,
   });
-  const [cloneDialog, setCloneDialog] = useState({
-    open: false,
-    checklist: null,
-  });
+  const [page, setPage] = useState(1);
+  const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [listLoading, setListLoading] = useState(false);
+  const [fetchError, setFetchError] = useState(null);
+
+  // Dialog state
+  const [dialog, setDialog] = useState({ open: false, checklist: null });
   const [cloneLoading, setCloneLoading] = useState(false);
+
+  // Snackbar state
   const [snack, setSnack] = useState({
     open: false,
     msg: "",
     severity: "success",
   });
 
-  // Fetch clone list (all checklists available for cloning)
-  const fetchCloneList = useCallback(async () => {
-    const filters = {
-      page: page,
-      limit: limit,
-    };
+  // Debounce search
+  useEffect(() => {
+    const t = setTimeout(() => {
+      setDebouncedSearch(search);
+      setPage(1);
+    }, 380);
+    return () => clearTimeout(t);
+  }, [search]);
 
-    if (searchQuery) {
-      filters.search = searchQuery;
-    }
+  // Fetch cloneable checklists — uses GET /checklists/cloneable
+  const fetchList = useCallback(
+    async (pg = page, q = debouncedSearch) => {
+      setListLoading(true);
+      setFetchError(null);
+      try {
+        const filters = { page: pg, limit: 10 };
+        if (q) filters.search = q;
 
-    const result = await getAllChecklists(filters);
+        const res = await getCloneableChecklists(filters);
 
-    if (result.success && result.data) {
-      let checklists = [];
-      let paginationData = {};
+        if (!res.success) {
+          setFetchError(res.error || "Failed to load checklists.");
+          setRows([]);
+          return;
+        }
 
-      if (Array.isArray(result.data)) {
-        checklists = result.data;
-      } else if (result.data.checklists) {
-        checklists = result.data.checklists;
-        paginationData = result.data.pagination || {};
+        const raw = res.data;
+        const list = raw?.checklists ?? (Array.isArray(raw) ? raw : []);
+        const pag = raw?.pagination ?? {};
+
+        setRows(list);
+        setPagination({
+          page: pag.page || pg,
+          limit: pag.limit || 10,
+          total: pag.total || list.length,
+          pages: pag.pages || Math.ceil((pag.total || list.length) / 10),
+        });
+
+        // On first unfiltered load, capture a full snapshot for stats
+        if (!q && pg === 1) {
+          // Fetch up to 100 for stat aggregation (no UI pagination effect)
+          const statsRes = await getCloneableChecklists({
+            page: 1,
+            limit: 100,
+          });
+          if (statsRes.success) {
+            const sraw = statsRes.data;
+            const slist = sraw?.checklists ?? (Array.isArray(sraw) ? sraw : []);
+            setAllRows(slist);
+          }
+        }
+      } catch (err) {
+        const msg =
+          err?.response?.data?.message || err?.message || "Unexpected error.";
+        setFetchError(msg);
+        setRows([]);
+      } finally {
+        setListLoading(false);
       }
-
-      setCloneList(checklists);
-      setPagination({
-        page: paginationData.page || page,
-        limit: paginationData.limit || limit,
-        total: paginationData.total || checklists.length,
-        totalPages:
-          paginationData.totalPages ||
-          Math.ceil((paginationData.total || checklists.length) / limit),
-      });
-    }
-  }, [getAllChecklists, page, limit, searchQuery]);
+    },
+    [getCloneableChecklists, page, debouncedSearch],
+  );
 
   useEffect(() => {
-    const timer = setTimeout(() => {
-      fetchCloneList();
-    }, 350);
-    return () => clearTimeout(timer);
-  }, [page, searchQuery, fetchCloneList]);
+    fetchList(page, debouncedSearch);
+  }, [page, debouncedSearch]);
 
-  // Handle clone confirmation
-  const handleClone = useCallback(
+  // Open dialog
+  const openClone = (row) => setDialog({ open: true, checklist: row });
+  const closeClone = () => {
+    if (!cloneLoading) setDialog({ open: false, checklist: null });
+  };
+
+  // Confirm clone — POST /checklists/:id/clone
+  const handleCloneConfirm = useCallback(
     async (newName) => {
-      if (!cloneDialog.checklist) return;
-
+      if (!dialog.checklist) return;
       setCloneLoading(true);
       try {
-        const result = await cloneChecklist(cloneDialog.checklist._id, newName);
-        if (result.success) {
+        const res = await cloneChecklist(dialog.checklist._id, { newName });
+        if (res.success) {
           setSnack({
             open: true,
             msg: `"${newName}" created successfully!`,
             severity: "success",
           });
-          setCloneDialog({ open: false, checklist: null });
-          // Refresh the list
-          fetchCloneList();
-          // Navigate back after 2 seconds
-          setTimeout(() => navigate("/admin/checklists"), 2000);
+          closeClone();
+          fetchList(page, debouncedSearch);
+          setTimeout(() => navigate("/admin/checklists"), 1800);
         } else {
           setSnack({
             open: true,
-            msg: result.error || "Clone failed.",
+            msg: res.error || "Clone failed. Please try again.",
             severity: "error",
           });
         }
       } catch (err) {
-        setSnack({
-          open: true,
-          msg: err.message || "Clone failed.",
-          severity: "error",
-        });
+        const msg =
+          err?.response?.data?.message || err?.message || "Clone failed.";
+        setSnack({ open: true, msg, severity: "error" });
       } finally {
         setCloneLoading(false);
       }
     },
-    [cloneDialog.checklist, cloneChecklist, navigate, fetchCloneList],
+    [
+      dialog.checklist,
+      cloneChecklist,
+      fetchList,
+      navigate,
+      page,
+      debouncedSearch,
+    ],
   );
 
-  // Get icon based on category
-  const getIcon = (category) => {
-    const icons = {
-      Safety: <SecurityIcon sx={{ fontSize: "1rem" }} />,
-      Equipment: <ConstructionIcon sx={{ fontSize: "1rem" }} />,
-      Site: <LocationCityIcon sx={{ fontSize: "1rem" }} />,
-      Quality: <VerifiedIcon sx={{ fontSize: "1rem" }} />,
-    };
-    return (
-      icons[category] || <AssignmentTurnedInIcon sx={{ fontSize: "1rem" }} />
-    );
+  const handlePageChange = (_, v) => {
+    setPage(v);
+  };
+  const handleRetry = () => fetchList(page, debouncedSearch);
+
+  // ── Derived stats from allRows snapshot ──────────────────────────────────
+  const statsSource = allRows.length > 0 ? allRows : rows;
+  const stats = {
+    total: pagination.total || statsSource.length,
+    published: statsSource.filter(
+      (r) => r.status === "published" || r.status === "active",
+    ).length,
+    totalFields: statsSource.reduce(
+      (s, r) => s + (r.totalFields ?? r.fields?.length ?? 0),
+      0,
+    ),
+    categories: [...new Set(statsSource.map((r) => r.category).filter(Boolean))]
+      .length,
   };
 
-  // Mobile card view
-  const MobileCardView = ({ row }) => (
-    <MobileCard elevation={0}>
-      <Box
-        sx={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "flex-start",
-          mb: 1,
-        }}
-      >
-        <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+  return (
+    <ThemeProvider theme={theme}>
+      <Box sx={{ minHeight: "100vh" }}>
+        {/* ── Top bar ── */}
+        <Box
+          sx={{
+            bgcolor: "background.paper",
+            borderBottom: "1px solid",
+            borderColor: "divider",
+            px: { xs: 2, sm: 4 },
+            py: 2,
+            position: "sticky",
+            top: 0,
+            width: "1152px",
+            marginLeft: "30px",
+            borderRadius: 1,
+            zIndex: 50,
+          }}
+        >
           <Box
             sx={{
-              width: 32,
-              height: 32,
-              borderRadius: "6px",
-              bgcolor: "#e6f7f9",
-              color: "#003544",
+              maxWidth: 1200,
+              mx: "auto",
               display: "flex",
               alignItems: "center",
-              justifyContent: "center",
+              justifyContent: "space-between",
+              gap: 2,
             }}
           >
-            {getIcon(row.category)}
-          </Box>
-          <Box>
-            <Typography
-              sx={{ fontWeight: 600, fontSize: "0.8rem", color: "#0f172a" }}
-            >
-              {row.name}
-            </Typography>
-            <Typography sx={{ fontSize: "0.65rem", color: "#64748b" }}>
-              {row.createdBy?.name || "System Admin"}
-            </Typography>
-          </Box>
-        </Box>
-        <StatusChip status={row.status}>{row.status}</StatusChip>
-      </Box>
-      <Box
-        sx={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          mt: 1,
-        }}
-      >
-        <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-          <Typography sx={{ fontSize: "0.65rem", color: "#64748b" }}>
-            {new Date(row.createdAt).toLocaleDateString()}
-          </Typography>
-          <Box
-            sx={{
-              width: 3,
-              height: 3,
-              borderRadius: "50%",
-              bgcolor: "#cbd5e1",
-            }}
-          />
-          <Box
-            sx={{
-              fontSize: "0.6rem",
-              fontWeight: 600,
-              bgcolor: "#f1f5f9",
-              px: 1,
-              py: 0.2,
-              borderRadius: "12px",
-              color: "#475569",
-            }}
-          >
-            {row.totalFields || 0} fields
-          </Box>
-        </Box>
-        <CloneButton
-          size="small"
-          startIcon={<ContentCopyIcon sx={{ fontSize: "0.7rem" }} />}
-          onClick={() => setCloneDialog({ open: true, checklist: row })}
-        >
-          Clone
-        </CloneButton>
-      </Box>
-    </MobileCard>
-  );
-
-  return (
-    <PageContainer>
-      <Snackbar
-        open={snack.open}
-        autoHideDuration={4000}
-        onClose={() => setSnack({ ...snack, open: false })}
-        anchorOrigin={{ vertical: "top", horizontal: "right" }}
-      >
-        <Alert
-          severity={snack.severity}
-          variant="filled"
-          sx={{ borderRadius: "10px" }}
-        >
-          {snack.msg}
-        </Alert>
-      </Snackbar>
-
-      <CloneDialog
-        open={cloneDialog.open}
-        checklist={cloneDialog.checklist}
-        onClose={() => setCloneDialog({ open: false, checklist: null })}
-        onConfirm={handleClone}
-        loading={cloneLoading}
-      />
-
-      {/* Header */}
-      <Paper
-        elevation={0}
-        square
-        sx={{
-          position: "sticky",
-          top: 0,
-          zIndex: 50,
-          width: "1125px",
-          bgcolor: "#ffffff",
-          display: "flex",
-          ml: 4,
-          justifyContent: "space-between",
-          alignItems: "center",
-          px: { xs: 2, sm: 3 },
-          py: 1.5,
-          boxShadow: "0 1px 3px rgba(0,0,0,0.02)",
-          borderBottom: "1px solid #edf2f7",
-        }}
-      >
-        <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
-          <IconButton
-            size="small"
-            onClick={() => navigate("/admin/checklists")}
-            sx={{
-              padding: "6px",
-              backgroundColor: "#f1f5f9",
-              "&:hover": { backgroundColor: "#e2e8f0" },
-            }}
-          >
-            <ArrowBackIcon sx={{ color: "#003544", fontSize: "1.1rem" }} />
-          </IconButton>
-          <Box>
-            <Typography
-              sx={{
-                fontSize: { xs: "1.1rem", sm: "1.3rem" },
-                fontWeight: 700,
-                color: "#003544",
-                lineHeight: 1.2,
-              }}
-            >
-              Select Checklist to Clone
-            </Typography>
-            <Typography
-              sx={{
-                fontSize: { xs: "0.65rem", sm: "0.75rem" },
-                color: "#64748b",
-              }}
-            >
-              Choose a checklist to create a copy
-            </Typography>
-          </Box>
-        </Box>
-        {!isMobile && (
-          <Box sx={{ display: "flex", gap: 1 }}>
-            <Tooltip title="Refresh">
+            <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
               <IconButton
-                size="small"
-                onClick={() => fetchCloneList()}
-                sx={{ padding: "6px", bgcolor: "#f1f5f9" }}
+                onClick={() => navigate("/admin/checklists")}
+                sx={{
+                  bgcolor: alpha(theme.palette.primary.main, 0.07),
+                  borderRadius: "12px",
+                  "&:hover": {
+                    bgcolor: alpha(theme.palette.primary.main, 0.13),
+                  },
+                }}
               >
-                <RefreshIcon sx={{ fontSize: "1rem", color: "#64748b" }} />
+                <ArrowBackIcon sx={{ color: "primary.main", fontSize: 20 }} />
+              </IconButton>
+              <Box>
+                <Typography
+                  fontWeight={800}
+                  fontSize={{ xs: 15, sm: 18 }}
+                  color="text.primary"
+                  sx={{ letterSpacing: "-0.01em", lineHeight: 1.2 }}
+                >
+                  Clone Checklist
+                </Typography>
+                <Typography
+                  variant="caption"
+                  color="text.secondary"
+                  sx={{ display: { xs: "none", sm: "block" } }}
+                >
+                  Duplicate an existing checklist to use as a new starting point
+                </Typography>
+              </Box>
+            </Box>
+            <Tooltip title="Refresh list">
+              <IconButton
+                onClick={handleRetry}
+                disabled={listLoading}
+                sx={{
+                  bgcolor: alpha(theme.palette.primary.main, 0.07),
+                  borderRadius: "12px",
+                  "&:hover": {
+                    bgcolor: alpha(theme.palette.primary.main, 0.13),
+                  },
+                }}
+              >
+                <RefreshIcon
+                  sx={{
+                    color: "primary.main",
+                    fontSize: 20,
+                    animation: listLoading
+                      ? "spin 0.9s linear infinite"
+                      : "none",
+                    "@keyframes spin": {
+                      "0%": { transform: "rotate(0deg)" },
+                      "100%": { transform: "rotate(360deg)" },
+                    },
+                  }}
+                />
               </IconButton>
             </Tooltip>
           </Box>
-        )}
-      </Paper>
-
-      {/* Search */}
-      <Paper
-        elevation={0}
-        sx={{
-          bgcolor: "#ffffff",
-          px: { xs: 2, sm: 3 },
-          py: 2,
-          mx: { xs: 1.5, sm: 3 },
-          mt: 2,
-          borderRadius: "12px",
-          border: "1px solid #edf2f7",
-        }}
-      >
-        <Box sx={{ position: "relative", maxWidth: 600 }}>
-          <Box
-            sx={{
-              position: "absolute",
-              left: 14,
-              top: "50%",
-              transform: "translateY(-50%)",
-              color: "#94a3b8",
-              display: "flex",
-            }}
-          >
-            <SearchIcon sx={{ fontSize: "1rem" }} />
-          </Box>
-          <SearchInput
-            fullWidth
-            placeholder="Search checklists by name..."
-            value={searchQuery}
-            onChange={(e) => {
-              setSearchQuery(e.target.value);
-              setPage(1);
-            }}
-          />
         </Box>
-      </Paper>
 
-      {/* Table / Cards */}
-      <Box
-        sx={{
-          mx: { xs: 1.5, sm: 3 },
-          mt: 2,
-          bgcolor: "#ffffff",
-          borderRadius: "12px",
-          border: "1px solid #edf2f7",
-          overflow: "hidden",
-        }}
-      >
-        {loading && cloneList.length === 0 ? (
-          <Box sx={{ display: "flex", justifyContent: "center", py: 6 }}>
-            <CircularProgress size={32} sx={{ color: "#003544" }} />
-          </Box>
-        ) : cloneList.length === 0 ? (
-          <Box sx={{ textAlign: "center", py: 8 }}>
-            <AssignmentTurnedInIcon
-              sx={{ fontSize: "3rem", color: "#cbd5e1", mb: 1.5 }}
-            />
-            <Typography sx={{ color: "#94a3b8", fontSize: "0.9rem" }}>
-              {searchQuery
-                ? "No checklists match your search"
-                : "No checklists available to clone"}
-            </Typography>
-          </Box>
-        ) : isMobile ? (
-          <Box sx={{ p: 1.5 }}>
-            {cloneList.map((row) => (
-              <MobileCardView key={row._id} row={row} />
-            ))}
-          </Box>
-        ) : (
-          <TableContainer sx={{ maxHeight: "calc(100vh - 280px)" }}>
-            <Table stickyHeader size="small">
-              <StyledTableHead>
-                <TableRow>
-                  {[
-                    "Checklist Name",
-                    "Created By",
-                    "Date",
-                    "Fields",
-                    "Type",
-                    "Status",
-                    "Actions",
-                  ].map((h) => (
-                    <TableCell key={h}>{h}</TableCell>
-                  ))}
-                </TableRow>
-              </StyledTableHead>
-              <TableBody>
-                {cloneList.map((row) => (
-                  <StyledTableRow key={row._id} hover>
-                    <TableCell sx={{ fontWeight: 600, color: "#0f172a" }}>
-                      {row.name}
-                    </TableCell>
-                    <TableCell>
-                      {row.createdBy?.name || "System Admin"}
-                    </TableCell>
-                    <TableCell sx={{ color: "#64748b" }}>
-                      {new Date(row.createdAt).toLocaleDateString()}
-                    </TableCell>
-                    <TableCell>
-                      <Box
-                        sx={{
-                          fontSize: "0.7rem",
-                          fontWeight: 600,
-                          bgcolor: "#f1f5f9",
-                          px: 1,
-                          py: 0.3,
-                          borderRadius: "12px",
-                          color: "#475569",
-                          display: "inline-block",
-                        }}
-                      >
-                        {row.totalFields || 0}
-                      </Box>
-                    </TableCell>
-                    <TableCell>
-                      <Chip
-                        label={row.type}
-                        size="small"
-                        sx={{
-                          height: 22,
-                          fontSize: "0.65rem",
-                          fontWeight: 600,
-                          textTransform: "capitalize",
-                          bgcolor:
-                            row.type === "global" ? "#003544" : "#f1f5f9",
-                          color: row.type === "global" ? "#fff" : "#475569",
-                        }}
-                      />
-                    </TableCell>
-                    <TableCell>
-                      <StatusChip status={row.status}>{row.status}</StatusChip>
-                    </TableCell>
-                    <TableCell align="center">
-                      <CloneButton
-                        size="small"
-                        startIcon={
-                          <ContentCopyIcon sx={{ fontSize: "0.7rem" }} />
-                        }
-                        onClick={() =>
-                          setCloneDialog({ open: true, checklist: row })
-                        }
-                      >
-                        Clone
-                      </CloneButton>
-                    </TableCell>
-                  </StyledTableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </TableContainer>
-        )}
-      </Box>
-
-      {/* Footer with Pagination */}
-      <Box
-        sx={{
-          mx: { xs: 1.5, sm: 3 },
-          mt: 2,
-          mb: 3,
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          flexDirection: { xs: "column", sm: "row" },
-          gap: { xs: 1.5, sm: 0 },
-        }}
-      >
-        <Typography
-          sx={{ fontSize: "0.65rem", fontWeight: 500, color: "#64748b" }}
+        <Container
+          maxWidth="lg"
+          sx={{ py: { xs: 2.5, sm: 4 }, px: { xs: 2, sm: 3 } }}
         >
-          Showing {cloneList.length} of {pagination.total || cloneList.length}{" "}
-          checklists
-        </Typography>
-        {pagination.totalPages > 1 &&
-          (isMobile ? (
-            <Pagination
-              count={pagination.totalPages}
-              page={page}
-              onChange={(_, v) => setPage(v)}
+          {/* ── Search ── */}
+          <Paper
+            elevation={0}
+            sx={{ p: 2, mb: 3, border: "1px solid", borderColor: "divider" }}
+          >
+            <TextField
+              fullWidth
               size="small"
-              siblingCount={0}
-              boundaryCount={1}
-              sx={{
-                "& .MuiPaginationItem-root": {
-                  fontSize: "0.6rem",
-                  minWidth: "24px",
-                  height: "24px",
-                },
+              placeholder="Search by name, category, or description…"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              InputProps={{
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <SearchIcon sx={{ color: "text.disabled", fontSize: 19 }} />
+                  </InputAdornment>
+                ),
+                endAdornment: search && (
+                  <InputAdornment position="end">
+                    <IconButton size="small" onClick={() => setSearch("")}>
+                      <CloseIcon sx={{ fontSize: 16 }} />
+                    </IconButton>
+                  </InputAdornment>
+                ),
               }}
             />
-          ) : (
-            <Box sx={{ display: "flex", gap: 0.5, alignItems: "center" }}>
-              <IconButton
-                size="small"
-                disabled={page === 1}
-                onClick={() => setPage((p) => p - 1)}
-                sx={{ padding: "4px" }}
+          </Paper>
+
+          {/* ── Stats ── */}
+          <Grid container spacing={2} sx={{ mb: 3 }}>
+            {[
+              {
+                label: "Total Cloneable",
+                value: stats.total,
+                sub: "Available to duplicate",
+                icon: <LayersIcon sx={{ fontSize: 20 }} />,
+              },
+              {
+                label: "Published",
+                value: stats.published,
+                sub: "Active & ready to clone",
+                icon: <CheckCircleIcon sx={{ fontSize: 20 }} />,
+                accent: theme.palette.success.main,
+              },
+              {
+                label: "Total Fields",
+                value: stats.totalFields,
+                sub: "Across all checklists",
+                icon: <ListAltIcon sx={{ fontSize: 20 }} />,
+                accent: theme.palette.info.main,
+              },
+              {
+                label: "Categories",
+                value: stats.categories,
+                sub: "Distinct categories",
+                icon: <CategoryIcon sx={{ fontSize: 20 }} />,
+                accent: theme.palette.warning.main,
+              },
+            ].map((s) => (
+              <Grid item xs={6} sm={3} key={s.label}>
+                <StatCard
+                  {...s}
+                  loading={listLoading && allRows.length === 0}
+                />
+              </Grid>
+            ))}
+          </Grid>
+
+          {/* ── Count bar ── */}
+          {!listLoading && !fetchError && rows.length > 0 && (
+            <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 2 }}>
+              <Box
+                sx={{
+                  width: 7,
+                  height: 7,
+                  borderRadius: "50%",
+                  bgcolor: "primary.main",
+                }}
+              />
+              <Typography
+                variant="caption"
+                fontWeight={600}
+                color="text.secondary"
               >
-                <ChevronLeftIcon sx={{ fontSize: "1rem" }} />
-              </IconButton>
-              {Array.from(
-                { length: Math.min(pagination.totalPages, 5) },
-                (_, i) => i + 1,
-              ).map((p) => (
-                <Typography
-                  key={p}
-                  onClick={() => setPage(p)}
+                {pagination.total}{" "}
+                {pagination.total === 1 ? "checklist" : "checklists"} available
+                to clone
+                {debouncedSearch && ` · filtered by "${debouncedSearch}"`}
+              </Typography>
+            </Box>
+          )}
+
+          {/* ── Content card ── */}
+          <Paper
+            elevation={0}
+            sx={{
+              border: "1px solid",
+              borderColor: "divider",
+              overflow: "hidden",
+            }}
+          >
+            {/* Error */}
+            {!listLoading && fetchError && (
+              <ErrorState message={fetchError} onRetry={handleRetry} />
+            )}
+
+            {/* Mobile cards */}
+            {!fetchError && isMobile && (
+              <Box sx={{ p: 2 }}>
+                {listLoading ? (
+                  <MobileSkeleton />
+                ) : rows.length === 0 ? (
+                  <EmptyState searched={!!debouncedSearch} />
+                ) : (
+                  rows.map((row) => (
+                    <MobileCard key={row._id} row={row} onClone={openClone} />
+                  ))
+                )}
+              </Box>
+            )}
+
+            {/* Desktop table */}
+            {!fetchError && !isMobile && (
+              <TableContainer>
+                <Table>
+                  <TableHead>
+                    <TableRow>
+                      <TH>Checklist</TH>
+                      <TH>Created By</TH>
+                      <TH>Date</TH>
+                      <TH align="center">Fields</TH>
+                      <TH align="center">Type</TH>
+                      <TH align="center">Status</TH>
+                      <TH align="center">Action</TH>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {listLoading ? (
+                      <TableSkeleton />
+                    ) : rows.length === 0 ? (
+                      <TableRow>
+                        <TD colSpan={7} sx={{ border: 0 }}>
+                          <EmptyState searched={!!debouncedSearch} />
+                        </TD>
+                      </TableRow>
+                    ) : (
+                      rows.map((row) => (
+                        <HoverRow key={row._id}>
+                          {/* Checklist name + description */}
+                          <TD sx={{ maxWidth: 280 }}>
+                            <Box
+                              sx={{
+                                display: "flex",
+                                gap: 1.5,
+                                alignItems: "center",
+                              }}
+                            >
+                              <CatAvatar category={row.category} />
+                              <Box sx={{ minWidth: 0, flex: 1 }}>
+                                <Typography
+                                  fontWeight={700}
+                                  fontSize={13}
+                                  noWrap
+                                >
+                                  {row.name}
+                                </Typography>
+                                {row.description && (
+                                  <Typography
+                                    variant="caption"
+                                    color="text.disabled"
+                                    sx={{
+                                      display: "block",
+                                      whiteSpace: "nowrap",
+                                      overflow: "hidden",
+                                      textOverflow: "ellipsis",
+                                      maxWidth: 220,
+                                    }}
+                                  >
+                                    {row.description}
+                                  </Typography>
+                                )}
+                                {row.tags?.length > 0 && (
+                                  <Stack
+                                    direction="row"
+                                    spacing={0.5}
+                                    sx={{ mt: 0.4 }}
+                                  >
+                                    {row.tags.slice(0, 3).map((t) => (
+                                      <Typography
+                                        key={t}
+                                        variant="caption"
+                                        color="text.disabled"
+                                        fontSize={10}
+                                      >
+                                        #{t}
+                                      </Typography>
+                                    ))}
+                                  </Stack>
+                                )}
+                              </Box>
+                            </Box>
+                          </TD>
+
+                          {/* Created by */}
+                          <TD>
+                            <Box
+                              sx={{
+                                display: "flex",
+                                alignItems: "center",
+                                gap: 1,
+                              }}
+                            >
+                              <Avatar
+                                sx={{
+                                  width: 26,
+                                  height: 26,
+                                  fontSize: 11,
+                                  bgcolor: alpha(
+                                    theme.palette.primary.main,
+                                    0.1,
+                                  ),
+                                  color: "primary.main",
+                                }}
+                              >
+                                {(
+                                  row.createdBy?.email ||
+                                  row.createdBy?.name ||
+                                  "U"
+                                )
+                                  .charAt(0)
+                                  .toUpperCase()}
+                              </Avatar>
+                              <Box>
+                                <Typography
+                                  fontSize={12}
+                                  color="text.secondary"
+                                  noWrap
+                                  sx={{ maxWidth: 140 }}
+                                >
+                                  {row.createdBy?.email ||
+                                    row.createdBy?.name ||
+                                    "System"}
+                                </Typography>
+                                {row.createdByRole && (
+                                  <Typography
+                                    fontSize={10}
+                                    color="text.disabled"
+                                    noWrap
+                                  >
+                                    {row.createdByRole.replace("_", " ")}
+                                  </Typography>
+                                )}
+                              </Box>
+                            </Box>
+                          </TD>
+
+                          {/* Created date */}
+                          <TD>
+                            <Box
+                              sx={{
+                                display: "flex",
+                                alignItems: "center",
+                                gap: 0.75,
+                              }}
+                            >
+                              <CalendarTodayIcon
+                                sx={{ fontSize: 12, color: "text.disabled" }}
+                              />
+                              <Typography fontSize={12} color="text.secondary">
+                                {fmt(row.createdAt)}
+                              </Typography>
+                            </Box>
+                          </TD>
+
+                          {/* Fields count */}
+                          <TD align="center">
+                            <Chip
+                              label={row.totalFields ?? row.fields?.length ?? 0}
+                              size="small"
+                              sx={{
+                                height: 22,
+                                minWidth: 36,
+                                fontWeight: 700,
+                                fontSize: 11,
+                                bgcolor: alpha(
+                                  theme.palette.primary.main,
+                                  0.07,
+                                ),
+                                color: "primary.main",
+                                "& .MuiChip-label": { px: 1.25 },
+                              }}
+                            />
+                          </TD>
+
+                          {/* Type */}
+                          <TD align="center">
+                            <TypeBadge type={row.checklistType} />
+                          </TD>
+
+                          {/* Status */}
+                          <TD align="center">
+                            <StatusBadge status={row.status} />
+                          </TD>
+
+                          {/* Clone action */}
+                          <TD align="center">
+                            <Button
+                              size="small"
+                              variant="contained"
+                              startIcon={
+                                <ContentCopyIcon sx={{ fontSize: 14 }} />
+                              }
+                              onClick={() => openClone(row)}
+                              sx={{
+                                fontSize: 12,
+                                borderRadius: "10px",
+                                px: 1.75,
+                                py: 0.65,
+                                whiteSpace: "nowrap",
+                              }}
+                            >
+                              Clone
+                            </Button>
+                          </TD>
+                        </HoverRow>
+                      ))
+                    )}
+                  </TableBody>
+                </Table>
+              </TableContainer>
+            )}
+
+            {/* Pagination */}
+            {!listLoading &&
+              !fetchError &&
+              rows.length > 0 &&
+              pagination.pages > 1 && (
+                <Box
                   sx={{
-                    fontSize: "0.7rem",
-                    color: p === page ? "#0f172a" : "#94a3b8",
-                    fontWeight: p === page ? 700 : 400,
-                    px: 1,
-                    cursor: "pointer",
-                    backgroundColor: p === page ? "#e2e8f0" : "transparent",
-                    borderRadius: "4px",
-                    py: 0.5,
+                    px: 3,
+                    py: 2.5,
+                    borderTop: "1px solid",
+                    borderColor: "divider",
+                    bgcolor: alpha(theme.palette.background.default, 0.7),
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    flexWrap: "wrap",
+                    gap: 2,
                   }}
                 >
-                  {p}
-                </Typography>
-              ))}
-              <IconButton
-                size="small"
-                disabled={page === pagination.totalPages}
-                onClick={() => setPage((p) => p + 1)}
-                sx={{ padding: "4px" }}
-              >
-                <ChevronRightIcon sx={{ fontSize: "1rem" }} />
-              </IconButton>
-            </Box>
-          ))}
+                  <Typography
+                    variant="caption"
+                    color="text.secondary"
+                    fontWeight={500}
+                  >
+                    Showing {(pagination.page - 1) * pagination.limit + 1}–
+                    {Math.min(
+                      pagination.page * pagination.limit,
+                      pagination.total,
+                    )}{" "}
+                    of {pagination.total}
+                  </Typography>
+                  <Pagination
+                    count={pagination.pages}
+                    page={pagination.page}
+                    onChange={handlePageChange}
+                    size={isMobile ? "small" : "medium"}
+                    sx={{
+                      "& .MuiPaginationItem-root": {
+                        borderRadius: "10px",
+                        fontWeight: 600,
+                        fontSize: 12,
+                      },
+                      "& .Mui-selected": {
+                        bgcolor: "primary.main !important",
+                        color: "#fff",
+                        "&:hover": { bgcolor: "primary.dark !important" },
+                      },
+                    }}
+                  />
+                </Box>
+              )}
+          </Paper>
+        </Container>
+
+        {/* ── Clone dialog ── */}
+        <CloneDialog
+          open={dialog.open}
+          checklist={dialog.checklist}
+          onClose={closeClone}
+          onConfirm={handleCloneConfirm}
+          loading={cloneLoading}
+        />
+
+        {/* ── Snackbar ── */}
+        <Snackbar
+          open={snack.open}
+          autoHideDuration={4500}
+          onClose={() => setSnack((s) => ({ ...s, open: false }))}
+          anchorOrigin={{ vertical: "top", horizontal: "right" }}
+          TransitionComponent={Fade}
+        >
+          <Alert
+            severity={snack.severity}
+            variant="filled"
+            icon={
+              snack.severity === "success" ? (
+                <CheckCircleIcon fontSize="small" />
+              ) : (
+                <WarningAmberIcon fontSize="small" />
+              )
+            }
+            onClose={() => setSnack((s) => ({ ...s, open: false }))}
+            sx={{
+              borderRadius: "14px",
+              fontWeight: 600,
+              fontSize: 13,
+              bgcolor:
+                snack.severity === "success" ? "primary.main" : "error.main",
+            }}
+          >
+            {snack.msg}
+          </Alert>
+        </Snackbar>
       </Box>
-    </PageContainer>
+    </ThemeProvider>
   );
 };
 

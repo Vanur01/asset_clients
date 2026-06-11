@@ -32,6 +32,13 @@ const clearAuthData = () => {
   sessionStorage.removeItem("accessToken");
 };
 
+// Validate token format
+const isValidToken = (token) => {
+  return (
+    token && token !== "undefined" && token !== "null" && token.length > 20
+  );
+};
+
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -47,10 +54,9 @@ export const AuthProvider = ({ children }) => {
 
     const isValidUser =
       storedUser && storedUser !== "undefined" && storedUser !== "null";
-    const isValidToken =
-      storedToken && storedToken !== "undefined" && storedToken !== "null";
+    const isValidTokenValue = isValidToken(storedToken);
 
-    if (isValidUser && isValidToken) {
+    if (isValidUser && isValidTokenValue) {
       try {
         const parsedUser = JSON.parse(storedUser);
         console.log(
@@ -153,9 +159,7 @@ export const AuthProvider = ({ children }) => {
           };
           userRoleType = "admin";
           redirectPath = "/dashboard";
-        } else if (
-          backendRole === "team" 
-        ) {
+        } else if (backendRole === "team") {
           transformedUser = {
             id: userData.id || userData._id,
             _id: userData.id || userData._id,
@@ -180,7 +184,7 @@ export const AuthProvider = ({ children }) => {
             permissions: userData.permissions || [],
           };
           userRoleType = "team";
-          redirectPath = "/team";
+          redirectPath = "/team"; // Redirect to team dashboard
         } else {
           console.warn("Unknown role received from backend:", userData.role);
           transformedUser = {
@@ -192,10 +196,7 @@ export const AuthProvider = ({ children }) => {
             name: userData.name || userData.fullName || "User",
           };
           userRoleType = userData.role || "team";
-          redirectPath =
-            userData.role === "team"
-              ? "/team"
-              : "/dashboard";
+          redirectPath = userData.role === "team" ? "/team" : "/dashboard";
         }
 
         // Store auth data
@@ -405,11 +406,7 @@ export const AuthProvider = ({ children }) => {
         token ||
         localStorage.getItem("accessToken") ||
         localStorage.getItem("token");
-      if (
-        currentToken &&
-        currentToken !== "undefined" &&
-        currentToken !== "null"
-      ) {
+      if (isValidToken(currentToken)) {
         await axios.post(
           `${API_BASE_URL}/auth/logout`,
           {},
@@ -442,24 +439,31 @@ export const AuthProvider = ({ children }) => {
   const isTeam = () => user?.role === "team";
 
   const isAuthenticated = useMemo(() => {
-    const authStatus =
-      !!user && !!token && token !== "undefined" && token !== "null";
+    const authStatus = !!user && isValidToken(token);
     console.log("isAuthenticated:", authStatus, "user role:", user?.role);
     return authStatus;
   }, [user, token]);
 
+  // Enhanced authRequest with better error handling and logging
   const authRequest = useCallback(
     async (method, url, data = null, customConfig = {}) => {
-      const currentToken =
-        token ||
-        localStorage.getItem("accessToken") ||
-        localStorage.getItem("token");
+      // Get token from multiple possible sources
+      let currentToken = token;
+      if (!isValidToken(currentToken)) {
+        currentToken =
+          localStorage.getItem("accessToken") || localStorage.getItem("token");
+      }
 
-      if (!currentToken) {
+      if (!isValidToken(currentToken)) {
+        console.error("No valid authentication token available");
         throw new Error("No authentication token available");
       }
 
+      // Clean the URL
       const cleanUrl = url.startsWith("/") ? url : `/${url}`;
+      const fullUrl = `${API_BASE_URL}${cleanUrl}`;
+
+      console.log(`AuthRequest: ${method.toUpperCase()} ${fullUrl}`);
 
       try {
         const headers = {
@@ -468,11 +472,12 @@ export const AuthProvider = ({ children }) => {
           Authorization: `Bearer ${currentToken}`,
         };
 
+        // Remove Content-Type for FormData
         if (data instanceof FormData) {
           delete headers["Content-Type"];
         }
 
-        const isMutating = ["post", "put", "patch"].includes(
+        const isMutating = ["post", "put", "patch", "delete"].includes(
           method.toLowerCase(),
         );
         const shouldAttachData =
@@ -480,9 +485,10 @@ export const AuthProvider = ({ children }) => {
 
         const config = {
           method: method.toLowerCase(),
-          url: `${API_BASE_URL}${cleanUrl}`,
+          url: fullUrl,
           headers,
           withCredentials: true,
+          timeout: 30000,
           ...Object.fromEntries(
             Object.entries(customConfig).filter(([k]) => k !== "headers"),
           ),
@@ -490,37 +496,60 @@ export const AuthProvider = ({ children }) => {
         };
 
         const response = await axios(config);
+
+        console.log(
+          `AuthRequest success: ${method.toUpperCase()} ${url}`,
+          response.status,
+        );
+
         return response.data;
       } catch (error) {
-        console.error(`Auth request error (${method} ${url}):`, error);
-        if (error.response?.status === 401) {
-          logout();
+        console.error(
+          `Auth request error (${method.toUpperCase()} ${url}):`,
+          error,
+        );
+
+        if (error.response) {
+          console.error("Response status:", error.response.status);
+          console.error("Response data:", error.response.data);
+
+          if (error.response.status === 401) {
+            console.log("Unauthorized - logging out");
+            window.dispatchEvent(new CustomEvent("auth:expired"));
+            logout();
+          }
         }
+
         throw error;
       }
     },
     [token, logout],
   );
 
+  // Convenience methods
   const get = useCallback(
     async (url, config = {}) => authRequest("GET", url, null, config),
     [authRequest],
   );
+
   const post = useCallback(
     async (url, data = null, config = {}) =>
       authRequest("POST", url, data, config),
     [authRequest],
   );
+
   const put = useCallback(
     async (url, data = null, config = {}) =>
       authRequest("PUT", url, data, config),
     [authRequest],
   );
+
   const patch = useCallback(
     async (url, data = null, config = {}) =>
       authRequest("PATCH", url, data, config),
     [authRequest],
   );
+
   const del = useCallback(
     async (url, config = {}) => authRequest("DELETE", url, null, config),
     [authRequest],
@@ -539,6 +568,39 @@ export const AuthProvider = ({ children }) => {
       return { reachable: false, error: error.message };
     }
   }, []);
+
+  const refreshToken = useCallback(async () => {
+    try {
+      const currentToken = token || localStorage.getItem("accessToken");
+      if (!isValidToken(currentToken)) {
+        throw new Error("No valid token to refresh");
+      }
+
+      const response = await axios.post(
+        `${API_BASE_URL}/auth/refresh-token`,
+        {},
+        {
+          headers: {
+            Authorization: `Bearer ${currentToken}`,
+          },
+          withCredentials: true,
+        },
+      );
+
+      if (response.data.success && response.data.accessToken) {
+        const newToken = response.data.accessToken;
+        localStorage.setItem("accessToken", newToken);
+        localStorage.setItem("token", newToken);
+        setToken(newToken);
+        return { success: true, token: newToken };
+      }
+      return { success: false, error: "Failed to refresh token" };
+    } catch (error) {
+      console.error("Token refresh error:", error);
+      logout();
+      return { success: false, error: error.message };
+    }
+  }, [token, logout]);
 
   const value = useMemo(
     () => ({
@@ -565,6 +627,7 @@ export const AuthProvider = ({ children }) => {
       patch,
       delete: del,
       checkBackendStatus,
+      refreshToken,
     }),
     [
       user,
@@ -580,6 +643,7 @@ export const AuthProvider = ({ children }) => {
       del,
       logout,
       checkBackendStatus,
+      refreshToken,
     ],
   );
 

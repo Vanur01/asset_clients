@@ -1,113 +1,118 @@
-// CustomChecklistBuilder.jsx
-import React, { useState, useRef, useEffect } from "react";
+// Requires: npm install jspdf html2canvas
+import React, { useState, useRef, useEffect, useCallback } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   Box,
   Typography,
   Button,
-  Paper,
+  IconButton,
   Grid,
-  TextField,
+  Paper,
   Divider,
+  Chip,
+  Stack,
   Checkbox,
   FormControlLabel,
-  Chip,
-  IconButton,
-  ThemeProvider,
-  createTheme,
-  CssBaseline,
   Rating,
-  Alert,
-  Snackbar,
+  TextField,
+  AppBar,
+  Toolbar,
   CircularProgress,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
+  Snackbar,
+  Alert,
+  Skeleton,
+  Select,
   MenuItem,
+  FormControl,
 } from "@mui/material";
-import ArrowBackIcon from "@mui/icons-material/ArrowBack";
-import DownloadIcon from "@mui/icons-material/Download";
-import ImageOutlinedIcon from "@mui/icons-material/ImageOutlined";
-import EditOutlinedIcon from "@mui/icons-material/EditOutlined";
-import SaveIcon from "@mui/icons-material/Save";
-import FolderOutlinedIcon from "@mui/icons-material/FolderOutlined";
-import PersonOutlineIcon from "@mui/icons-material/PersonOutline";
-import CalendarTodayOutlinedIcon from "@mui/icons-material/CalendarTodayOutlined";
-import TagIcon from "@mui/icons-material/Tag";
-import CheckCircleIcon from "@mui/icons-material/CheckCircle";
+import { createTheme, ThemeProvider, alpha } from "@mui/material/styles";
 import { useChecklistBuilder } from "../context/ChecklistBuilderContext";
-import { useAuth } from "../context/AuthContexts";
-import { useNavigate } from "react-router-dom";
-import jsPDF from "jspdf";
-import html2canvas from "html2canvas";
 
-// ─── Theme ────────────────────────────────────────────────────────────────────
+// ── MUI Theme ─────────────────────────────────────────────────────────────────
 const theme = createTheme({
   palette: {
-    mode: "light",
-    primary: { main: "#1a4a5c", dark: "#0f3040", light: "#2a7a9b" },
-    background: { default: "#f4f5f7", paper: "#ffffff" },
-    text: { primary: "#1a1d23", secondary: "#6b7280" },
+    primary: { main: "#144c5c", dark: "#0d3a47", light: "#e8f4f7" },
+    background: { default: "#f5f6f7", paper: "#ffffff" },
+    text: { primary: "#111827", secondary: "#6b7280" },
   },
-  typography: { fontFamily: "'DM Sans', 'Helvetica Neue', sans-serif" },
-  shape: { borderRadius: 10 },
+  typography: {
+    fontFamily: "system-ui,-apple-system,sans-serif",
+    button: { textTransform: "none", fontWeight: 500 },
+  },
+  shape: { borderRadius: 8 },
   components: {
     MuiButton: {
       styleOverrides: {
         root: {
-          textTransform: "none",
-          fontWeight: 500,
-          fontSize: 13,
           borderRadius: 8,
           boxShadow: "none",
           "&:hover": { boxShadow: "none" },
         },
+        outlined: {
+          borderColor: "#e5e7eb",
+          color: "#374151",
+          "&:hover": { background: "#f0f1f2", borderColor: "#e5e7eb" },
+        },
+        outlinedPrimary: {
+          borderColor: "#144c5c",
+          color: "#144c5c",
+          "&:hover": { background: "#e8f4f7" },
+        },
+        containedPrimary: {
+          background: "#144c5c",
+          "&:hover": { background: "#0d3a47" },
+        },
+      },
+    },
+    MuiPaper: {
+      styleOverrides: {
+        root: { boxShadow: "none", border: "1px solid #e8ecef" },
       },
     },
     MuiOutlinedInput: {
       styleOverrides: {
         root: {
-          borderRadius: 10,
-          fontSize: 14,
-          "& fieldset": { borderColor: "#e5e7eb" },
-          "&:hover fieldset": { borderColor: "#cbd5e1" },
-          "&.Mui-focused fieldset": { borderColor: "#2a7a9b" },
+          borderRadius: 8,
+          fontSize: 13,
+          "& fieldset": { borderColor: "#dde3e8" },
+          "&:hover fieldset": { borderColor: "#144c5c !important" },
+          "&.Mui-focused fieldset": { borderColor: "#144c5c !important" },
         },
+        input: { padding: "10px 14px" },
+      },
+    },
+    MuiChip: {
+      styleOverrides: {
+        root: { borderRadius: 20, fontSize: 11, height: 24 },
       },
     },
   },
 });
 
-const LOCATION_OPTIONS = [
-  "Warehouse A",
-  "Warehouse B",
-  "Factory Floor",
-  "Office Building",
-];
-const CATEGORY_OPTIONS = [
-  "Heavy Machinery",
-  "Electrical",
-  "Safety Equipment",
-  "Tools",
-];
-
-// ─── Sub-components ───────────────────────────────────────────────────────────
+// ── Section Header ─────────────────────────────────────────────────────────
 function SectionHeader({ title }) {
   return (
     <Box
-      sx={{ bgcolor: "#eef2f5", borderRadius: "10px", px: 2.5, py: 1.5, mb: 3 }}
+      sx={{
+        background: "#f0f4f6",
+        borderRadius: "10px",
+        px: 2.25,
+        py: 1.5,
+        mb: 2.5,
+      }}
     >
-      <Typography sx={{ fontWeight: 700, fontSize: 15, color: "#1a4a5c" }}>
+      <Typography sx={{ fontSize: 15, fontWeight: 700, color: "#1a3a47" }}>
         {title}
       </Typography>
     </Box>
   );
 }
 
+// ── Field Label ────────────────────────────────────────────────────────────
 function FieldLabel({ label, required }) {
   return (
     <Typography
-      sx={{ fontSize: 13, fontWeight: 600, color: "#1a4a5c", mb: 0.8 }}
+      sx={{ fontSize: 13, fontWeight: 600, color: "#144c5c", mb: 0.75 }}
     >
       {label}
       {required && " *"}
@@ -115,115 +120,345 @@ function FieldLabel({ label, required }) {
   );
 }
 
-function SignaturePad({ readOnly = false, onSignatureChange }) {
+// ── Dynamic Field Renderer ─────────────────────────────────────────────────
+function DynamicField({ field, value, onChange }) {
+  const handleChange = (val) => onChange(field._id || field.label, val);
+
+  switch (field.type) {
+    case "text_input":
+      return (
+        <TextField
+          fullWidth
+          size="small"
+          placeholder={field.placeholder || `Enter ${field.label}`}
+          value={value || ""}
+          onChange={(e) => handleChange(e.target.value)}
+          sx={{
+            "& .MuiOutlinedInput-root": { borderRadius: "8px", fontSize: 13 },
+            "& .MuiOutlinedInput-input": { color: "#374151" },
+          }}
+        />
+      );
+
+    case "text_area":
+      return (
+        <TextField
+          fullWidth
+          multiline
+          minRows={3}
+          size="small"
+          placeholder={field.placeholder || `Enter ${field.label}`}
+          value={value || ""}
+          onChange={(e) => handleChange(e.target.value)}
+          sx={{
+            "& .MuiOutlinedInput-root": { borderRadius: "8px", fontSize: 13 },
+            "& .MuiOutlinedInput-input": { color: "#374151" },
+          }}
+        />
+      );
+
+    case "dropdown":
+      return (
+        <FormControl fullWidth size="small">
+          <Select
+            value={value || ""}
+            onChange={(e) => handleChange(e.target.value)}
+            displayEmpty
+            sx={{
+              borderRadius: "8px",
+              fontSize: 13,
+              color: value ? "#374151" : "#9ca3af",
+            }}
+          >
+            <MenuItem value="" disabled sx={{ fontSize: 13, color: "#9ca3af" }}>
+              Select {field.label}
+            </MenuItem>
+            {(field.options || []).map((opt, i) => (
+              <MenuItem key={i} value={opt} sx={{ fontSize: 13 }}>
+                {opt}
+              </MenuItem>
+            ))}
+          </Select>
+        </FormControl>
+      );
+
+    case "checkbox":
+      return (
+        <Box
+          sx={{
+            border: "1px solid #dde3e8",
+            borderRadius: "8px",
+            px: 2,
+            py: 1.5,
+            background: "#fff",
+          }}
+        >
+          <Stack spacing={1}>
+            {(field.options || []).map((item, i) => (
+              <FormControlLabel
+                key={i}
+                control={
+                  <Checkbox
+                    checked={
+                      Array.isArray(value) ? value.includes(item) : false
+                    }
+                    onChange={() => {
+                      const curr = Array.isArray(value) ? value : [];
+                      const next = curr.includes(item)
+                        ? curr.filter((v) => v !== item)
+                        : [...curr, item];
+                      handleChange(next);
+                    }}
+                    size="small"
+                    sx={{
+                      color: "#9ca3af",
+                      "&.Mui-checked": { color: "#144c5c" },
+                      p: 0.5,
+                    }}
+                  />
+                }
+                label={
+                  <Typography sx={{ fontSize: 13, color: "#374151" }}>
+                    {item}
+                  </Typography>
+                }
+                sx={{ mx: 0 }}
+              />
+            ))}
+          </Stack>
+        </Box>
+      );
+
+    case "rating": {
+      const max = field.validation?.max || 5;
+      return (
+        <Box
+          sx={{
+            border: "1px solid #dde3e8",
+            borderRadius: "8px",
+            px: 2,
+            py: 1.5,
+            background: "#fff",
+            display: "flex",
+            alignItems: "center",
+            gap: 1.5,
+          }}
+        >
+          <Rating
+            value={value || 0}
+            onChange={(_, v) => handleChange(v)}
+            max={max}
+            sx={{
+              "& .MuiRating-iconFilled": { color: "#f59e0b" },
+              "& .MuiRating-iconEmpty": { color: "#d1d5db" },
+            }}
+          />
+          <Typography sx={{ fontSize: 12, color: "#9ca3af" }}>
+            {value ? `${value}/${max}` : `[Rating Scale: 1-${max}]`}
+          </Typography>
+        </Box>
+      );
+    }
+
+    case "date":
+      return (
+        <TextField
+          fullWidth
+          type="date"
+          size="small"
+          value={value || ""}
+          onChange={(e) => handleChange(e.target.value)}
+          InputLabelProps={{ shrink: true }}
+          sx={{
+            "& .MuiOutlinedInput-root": { borderRadius: "8px", fontSize: 13 },
+            "& .MuiOutlinedInput-input": { color: "#374151" },
+          }}
+        />
+      );
+
+    case "image_upload":
+    case "file_upload":
+      return (
+        <Box
+          component="label"
+          sx={{
+            display: "block",
+            border: "1.5px dashed #c6d4da",
+            borderRadius: "8px",
+            py: 5,
+            px: 3,
+            textAlign: "center",
+            background: "#fff",
+            cursor: "pointer",
+            "&:hover": { borderColor: "#144c5c", background: "#f0f9fb" },
+            transition: "all .12s",
+          }}
+        >
+          <input
+            type="file"
+            hidden
+            accept={field.type === "image_upload" ? "image/*" : "*"}
+            multiple
+            onChange={(e) => handleChange(Array.from(e.target.files))}
+          />
+          <Box sx={{ mb: 1, display: "flex", justifyContent: "center" }}>
+            <svg width="40" height="40" viewBox="0 0 40 40" fill="none">
+              <rect width="40" height="40" rx="6" fill="#f0f4f6" />
+              <rect
+                x="9"
+                y="11"
+                width="22"
+                height="18"
+                rx="2"
+                stroke="#9ca3af"
+                strokeWidth="1.4"
+              />
+              <path
+                d="M14 21l4 4 9-8"
+                stroke="#9ca3af"
+                strokeWidth="1.4"
+                strokeLinecap="round"
+              />
+              <circle cx="27" cy="15" r="3" fill="#c6d4da" />
+            </svg>
+          </Box>
+          <Typography sx={{ fontSize: 13, color: "#374151", mb: 0.5 }}>
+            {Array.isArray(value) && value.length > 0
+              ? `${value.length} file(s) selected`
+              : `Drag and drop ${field.type === "image_upload" ? "images" : "files"} here or click to browse`}
+          </Typography>
+          <Typography sx={{ fontSize: 12, color: "#144c5c" }}>
+            {field.type === "image_upload"
+              ? "Supported: JPG, PNG (Max 10MB)"
+              : "Supported: All formats (Max 10MB)"}
+          </Typography>
+        </Box>
+      );
+
+    case "signature":
+      return <SignaturePad value={value} onChange={handleChange} />;
+
+    default:
+      return (
+        <TextField
+          fullWidth
+          size="small"
+          placeholder={field.placeholder || `Enter ${field.label}`}
+          value={value || ""}
+          onChange={(e) => handleChange(e.target.value)}
+          sx={{
+            "& .MuiOutlinedInput-root": { borderRadius: "8px", fontSize: 13 },
+          }}
+        />
+      );
+  }
+}
+
+// ── Signature Pad ──────────────────────────────────────────────────────────
+function SignaturePad({ value, onChange }) {
   const canvasRef = useRef(null);
-  const drawing = useRef(false);
+  const [drawing, setDrawing] = useState(false);
   const [hasSig, setHasSig] = useState(false);
+  const last = useRef(null);
 
   const getPos = (e, canvas) => {
     const rect = canvas.getBoundingClientRect();
-    const clientX = e.touches ? e.touches[0].clientX : e.clientX;
-    const clientY = e.touches ? e.touches[0].clientY : e.clientY;
-    return { x: clientX - rect.left, y: clientY - rect.top };
+    const src = e.touches ? e.touches[0] : e;
+    return { x: src.clientX - rect.left, y: src.clientY - rect.top };
   };
-
-  const startDraw = (e) => {
-    if (readOnly) return;
-    drawing.current = true;
+  const start = (e) => {
+    e.preventDefault();
+    last.current = getPos(e, canvasRef.current);
+    setDrawing(true);
+  };
+  const move = (e) => {
+    e.preventDefault();
+    if (!drawing) return;
     const canvas = canvasRef.current;
     const ctx = canvas.getContext("2d");
     const pos = getPos(e, canvas);
     ctx.beginPath();
-    ctx.moveTo(pos.x, pos.y);
-  };
-  const draw = (e) => {
-    if (!drawing.current || readOnly) return;
-    e.preventDefault();
-    const canvas = canvasRef.current;
-    const ctx = canvas.getContext("2d");
-    ctx.strokeStyle = "#1a4a5c";
-    ctx.lineWidth = 2;
-    ctx.lineCap = "round";
-    const pos = getPos(e, canvas);
+    ctx.moveTo(last.current.x, last.current.y);
     ctx.lineTo(pos.x, pos.y);
+    ctx.strokeStyle = "#1a3a47";
+    ctx.lineWidth = 1.8;
+    ctx.lineCap = "round";
     ctx.stroke();
-    if (!hasSig) {
-      setHasSig(true);
-      if (onSignatureChange) onSignatureChange(true);
-    }
+    last.current = pos;
+    setHasSig(true);
+    onChange && onChange(canvasRef.current.toDataURL());
   };
-  const stopDraw = () => {
-    drawing.current = false;
-    if (hasSig && canvasRef.current && onSignatureChange) {
-      onSignatureChange(true, canvasRef.current.toDataURL());
-    }
-  };
-  const clearCanvas = () => {
-    if (readOnly) return;
-    const canvas = canvasRef.current;
-    const ctx = canvas.getContext("2d");
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    ctx.fillStyle = "#fff";
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
+  const end = () => setDrawing(false);
+  const clear = () => {
+    canvasRef.current.getContext("2d").clearRect(0, 0, 580, 120);
     setHasSig(false);
-    if (onSignatureChange) onSignatureChange(false);
+    onChange && onChange(null);
   };
-
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    if (canvas) {
-      canvas.width = 700;
-      canvas.height = 100;
-      const ctx = canvas.getContext("2d");
-      ctx.fillStyle = "#fff";
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
-    }
-  }, []);
 
   return (
     <Box
       sx={{
-        border: "1.5px solid #e5e7eb",
-        borderRadius: "10px",
-        bgcolor: "#fff",
+        border: "1px solid #dde3e8",
+        borderRadius: "8px",
+        background: "#fff",
         overflow: "hidden",
       }}
     >
-      <canvas
-        ref={canvasRef}
-        style={{
-          display: "block",
-          width: "100%",
-          height: 100,
-          cursor: readOnly ? "default" : "crosshair",
-          backgroundColor: "#fff",
-        }}
-        onMouseDown={startDraw}
-        onMouseMove={draw}
-        onMouseUp={stopDraw}
-        onMouseLeave={stopDraw}
-        onTouchStart={startDraw}
-        onTouchMove={draw}
-        onTouchEnd={stopDraw}
-      />
-      <Divider sx={{ borderColor: "#e5e7eb" }} />
+      <Box sx={{ position: "relative", textAlign: "center" }}>
+        {!hasSig && (
+          <Typography
+            sx={{
+              position: "absolute",
+              top: "50%",
+              left: "50%",
+              transform: "translate(-50%,-50%)",
+              fontSize: 13,
+              color: "#9ca3af",
+              pointerEvents: "none",
+              zIndex: 1,
+            }}
+          >
+            [Signature Pad — draw here]
+          </Typography>
+        )}
+        <canvas
+          ref={canvasRef}
+          width={580}
+          height={120}
+          onMouseDown={start}
+          onMouseMove={move}
+          onMouseUp={end}
+          onMouseLeave={end}
+          onTouchStart={start}
+          onTouchMove={move}
+          onTouchEnd={end}
+          style={{
+            display: "block",
+            cursor: "crosshair",
+            width: "100%",
+            height: 120,
+            touchAction: "none",
+          }}
+        />
+      </Box>
+      <Divider />
       <Box
         sx={{
-          px: 2.5,
-          py: 1.2,
+          px: 2,
+          py: 1,
           display: "flex",
           justifyContent: "space-between",
           alignItems: "center",
         }}
       >
-        <Typography sx={{ fontSize: 12.5, color: "#2a7a9b" }}>
-          {hasSig ? "Signature captured" : "Sign above using mouse or touch"}
+        <Typography sx={{ fontSize: 12, color: "#144c5c" }}>
+          Sign above using mouse or touch
         </Typography>
-        {!readOnly && (
+        {hasSig && (
           <Button
             size="small"
-            onClick={clearCanvas}
-            sx={{ fontSize: 11, color: "#9ca3af", minWidth: "auto", p: 0 }}
+            onClick={clear}
+            sx={{ fontSize: 12, color: "#9ca3af", minWidth: 0, p: 0 }}
           >
             Clear
           </Button>
@@ -233,927 +468,1076 @@ function SignaturePad({ readOnly = false, onSignatureChange }) {
   );
 }
 
-function SuccessDialog({ open, onClose, message }) {
-  const navigate = useNavigate();
+// ── Sidebar Detail Row ─────────────────────────────────────────────────────
+function DetailRow({ iconEl, label, value, isTag }) {
   return (
-    <Dialog open={open} onClose={onClose} maxWidth="xs" fullWidth>
-      <DialogTitle sx={{ textAlign: "center", pb: 1 }}>
-        <CheckCircleIcon sx={{ fontSize: 64, color: "#4caf50", mb: 1 }} />
-        <Typography variant="h6" sx={{ fontWeight: 600 }}>
-          Success!
+    <Box
+      sx={{
+        display: "flex",
+        gap: 1.5,
+        alignItems: "flex-start",
+        py: 1.25,
+        borderBottom: "1px solid #f0f1f2",
+      }}
+    >
+      <Box
+        sx={{
+          width: 34,
+          height: 34,
+          borderRadius: "8px",
+          background: "#e8f4f7",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          flexShrink: 0,
+        }}
+      >
+        {iconEl}
+      </Box>
+      <Box>
+        <Typography sx={{ fontSize: 11, color: "#9ca3af", mb: 0.25 }}>
+          {label}
         </Typography>
-      </DialogTitle>
-      <DialogContent>
-        <Typography sx={{ textAlign: "center", color: "#6b7280" }}>
-          {message}
-        </Typography>
-      </DialogContent>
-      <DialogActions sx={{ justifyContent: "center", gap: 2, pb: 3 }}>
-        <Button onClick={onClose} variant="outlined">
-          Continue Editing
-        </Button>
-        <Button
-          onClick={() => navigate("/admin/checklists")}
-          variant="contained"
-          sx={{ bgcolor: "#1a4a5c" }}
-        >
-          View Checklists
-        </Button>
-      </DialogActions>
-    </Dialog>
+        {isTag ? (
+          <Stack direction="row" flexWrap="wrap" gap={0.6} mt={0.25}>
+            {(Array.isArray(value) ? value : [value]).map((t) => (
+              <Chip
+                key={t}
+                label={t}
+                size="small"
+                sx={{
+                  background: "#e8f4f7",
+                  color: "#144c5c",
+                  fontWeight: 500,
+                }}
+              />
+            ))}
+          </Stack>
+        ) : (
+          <Typography sx={{ fontSize: 13, fontWeight: 500, color: "#1a3a47" }}>
+            {value || "—"}
+          </Typography>
+        )}
+      </Box>
+    </Box>
   );
 }
 
-// ─── Main component ───────────────────────────────────────────────────────────
-export default function CustomChecklistBuilder() {
-  const navigate = useNavigate();
-  const { user } = useAuth();
-  const { createChecklist, loading, error, success, clearMessages } =
-    useChecklistBuilder();
+// ── SVG Icons ──────────────────────────────────────────────────────────────
+const IconForm = () => (
+  <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+    <rect
+      x="2"
+      y="2"
+      width="12"
+      height="12"
+      rx="2"
+      stroke="#144c5c"
+      strokeWidth="1.4"
+    />
+    <path
+      d="M5 6h6M5 9h4"
+      stroke="#144c5c"
+      strokeWidth="1.4"
+      strokeLinecap="round"
+    />
+  </svg>
+);
+const IconUser = () => (
+  <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+    <circle cx="8" cy="5.5" r="2.5" stroke="#144c5c" strokeWidth="1.4" />
+    <path
+      d="M3 13c0-2.76 2.24-5 5-5s5 2.24 5 5"
+      stroke="#144c5c"
+      strokeWidth="1.4"
+      strokeLinecap="round"
+    />
+  </svg>
+);
+const IconCal = () => (
+  <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+    <rect
+      x="2"
+      y="3"
+      width="12"
+      height="11"
+      rx="2"
+      stroke="#144c5c"
+      strokeWidth="1.4"
+    />
+    <path
+      d="M5 1v4M11 1v4M2 7h12"
+      stroke="#144c5c"
+      strokeWidth="1.4"
+      strokeLinecap="round"
+    />
+  </svg>
+);
+const IconHash = () => (
+  <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+    <path
+      d="M4 6h8M4 10h8M6.5 3l-1 10M10.5 3l-1 10"
+      stroke="#144c5c"
+      strokeWidth="1.4"
+      strokeLinecap="round"
+    />
+  </svg>
+);
+const IconVer = () => (
+  <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+    <path
+      d="M3 8h4M9 8h4M8 3v4M8 9v4"
+      stroke="#144c5c"
+      strokeWidth="1.4"
+      strokeLinecap="round"
+    />
+  </svg>
+);
+const IconTag = () => (
+  <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+    <path
+      d="M2 2h6l6 6-6 6-6-6V2z"
+      stroke="#144c5c"
+      strokeWidth="1.4"
+      strokeLinejoin="round"
+    />
+    <circle cx="5.5" cy="5.5" r="1" fill="#144c5c" />
+  </svg>
+);
 
-  const [signatureData, setSignatureData] = useState(null);
-  const [editMode, setEditMode] = useState(false);
+// ── Group fields into sections ─────────────────────────────────────────────
+function groupFieldsIntoSections(fields) {
+  if (!fields || fields.length === 0) return [];
+  const basicTypes = ["text_input", "dropdown", "date"];
+  const checkTypes = ["checkbox", "rating"];
+  const docTypes = ["image_upload", "file_upload", "text_area", "signature"];
+
+  const basic = fields.filter((f) => basicTypes.includes(f.type));
+  const checks = fields.filter((f) => checkTypes.includes(f.type));
+  const docs = fields.filter((f) => docTypes.includes(f.type));
+  const other = fields.filter(
+    (f) => ![...basicTypes, ...checkTypes, ...docTypes].includes(f.type),
+  );
+
+  const sections = [];
+  if (basic.length > 0)
+    sections.push({ title: "Basic Information", fields: basic });
+  if (checks.length > 0)
+    sections.push({ title: "Safety Checks", fields: checks });
+  if (docs.length > 0) sections.push({ title: "Documentation", fields: docs });
+  if (other.length > 0)
+    sections.push({ title: "Additional Fields", fields: other });
+  return sections.length > 0 ? sections : [{ title: "Form Fields", fields }];
+}
+
+// ── Loading Skeleton ───────────────────────────────────────────────────────
+function FormSkeleton() {
+  return (
+    <Paper sx={{ borderRadius: "14px", p: { xs: 3, md: 4.5 } }}>
+      <Skeleton variant="text" width="60%" height={36} sx={{ mb: 1 }} />
+      <Skeleton variant="text" width="80%" height={20} sx={{ mb: 3 }} />
+      <Skeleton
+        variant="rectangular"
+        height={40}
+        sx={{ mb: 2, borderRadius: 2 }}
+      />
+      {[1, 2, 3, 4].map((i) => (
+        <Skeleton
+          key={i}
+          variant="rectangular"
+          height={50}
+          sx={{ mb: 2, borderRadius: 2 }}
+        />
+      ))}
+    </Paper>
+  );
+}
+
+// ── Build API payload (matches POST /checklists body exactly) ──────────────
+// Strips user-entered values; sends only the checklist schema fields.
+// The backend persists field definitions — not user responses.
+function buildChecklistPayload(checklist) {
+  return {
+    name: checklist.name,
+    description: checklist.description || "",
+    checklistType: checklist.checklistType || "custom",
+    isGlobal: checklist.isGlobal ?? false,
+    category: checklist.category || "general",
+    tags: checklist.tags || [],
+    fields: (checklist.fields || []).map((field, idx) => {
+      const f = {
+        type: field.type,
+        label: field.label,
+        required: field.required ?? false,
+        order: field.order ?? idx,
+      };
+      if (field.placeholder) f.placeholder = field.placeholder;
+      if (field.options && field.options.length > 0) f.options = field.options;
+      if (field.validation) f.validation = field.validation;
+      return f;
+    }),
+  };
+}
+
+// ── Main Page ─────────────────────────────────────────────────────────────
+export default function CustomChecklist({ checklistId }) {
+  const navigate = useNavigate();
+
+  // Pull createChecklist (handles auth + axios) and helpers from context
+  const {
+    createChecklist,
+    getChecklistById,
+    convertAPIToUIField,
+    loading,
+    clearMessages,
+  } = useChecklistBuilder();
+
+  const [checklist, setChecklist] = useState(null);
+  const [uiFields, setUiFields] = useState([]);
+  const [formValues, setFormValues] = useState({});
   const [submitting, setSubmitting] = useState(false);
-  const [successDialogOpen, setSuccessDialogOpen] = useState(false);
+  const [submitted, setSubmitted] = useState(false);
+  const [pdfDownloading, setPdfDownloading] = useState(false);
   const [snackbar, setSnackbar] = useState({
     open: false,
     message: "",
     severity: "success",
   });
+  const [fetchError, setFetchError] = useState(null);
+  const formRef = useRef(null);
 
-  const [formData, setFormData] = useState({
-    name: "Equipment Safety Inspection Form",
-    description:
-      "Complete this form to document equipment safety inspection results. All fields marked with * are required.",
-    category: "Safety",
-    equipmentName: "",
-    equipmentId: "",
-    location: "",
-    equipmentCategory: "",
-    inspectionDate: new Date().toISOString().split("T")[0],
-    inspectorName: "",
-    preInspectionChecks: [
-      { label: "Equipment is powered off", checked: false },
-      { label: "Safety gear is available", checked: false },
-      { label: "Area is clear of hazards", checked: false },
-      { label: "Documentation is ready", checked: false },
-    ],
-    overallCondition: 3,
-    additionalNotes: "",
-    photos: [],
-  });
-
-  const showSnack = (message, severity = "success") =>
-    setSnackbar({ open: true, message, severity });
-
-  const handleInputChange = (field, value) => {
-    if (!editMode) return;
-    setFormData((p) => ({ ...p, [field]: value }));
-  };
-
-  const toggleCheck = (index) => {
-    if (!editMode) return;
-    const newChecks = formData.preInspectionChecks.map((c, i) =>
-      i === index ? { ...c, checked: !c.checked } : c,
-    );
-    setFormData((p) => ({ ...p, preInspectionChecks: newChecks }));
-  };
-
-  // ─── Prepare data for API ─────────────────────────────────────────────────
-  // IMPORTANT: fieldType values MUST match the Mongoose enum exactly.
-  const prepareChecklistData = () => ({
-    name: formData.name.trim(),
-    description: formData.description.trim(),
-    type: "custom",
-    category: formData.category,
-    status: "active",
-    tags: ["Safety", "Equipment", "Inspection"],
-    sections: [
-      {
-        sectionTitle: "Basic Information",
-        sectionDescription: "Equipment and inspection details",
-        order: 0,
+  // ── Fetch checklist on mount ────────────────────────────────────────────
+  useEffect(() => {
+    if (!checklistId) {
+      // Demo mode — no real checklistId provided
+      const demoChecklist = {
+        _id: "demo-001",
+        name: "Equipment Safety Inspection",
+        description: "Form to document equipment safety inspection results.",
+        checklistType: "custom",
+        isGlobal: false,
+        category: "safety",
+        tags: ["safety", "equipment", "inspection"],
+        version: 1,
+        status: "published",
+        createdAt: "2024-11-27T00:00:00.000Z",
+        createdBy: { name: "Customer Admin" },
         fields: [
           {
+            _id: "f1",
+            type: "text_input",
             label: "Equipment Name",
-            fieldType: "text_input",
-            isRequired: true,
             placeholder: "Enter equipment name",
+            required: true,
             order: 0,
           },
           {
+            _id: "f2",
+            type: "text_input",
             label: "Equipment ID",
-            fieldType: "text_input",
-            isRequired: true,
             placeholder: "Enter equipment ID",
+            required: true,
             order: 1,
           },
           {
+            _id: "f3",
+            type: "dropdown",
             label: "Location",
-            fieldType: "dropdown",
-            isRequired: true,
-            options: LOCATION_OPTIONS,
+            required: true,
+            options: ["Warehouse A", "Warehouse B", "Floor 1", "Floor 2"],
             order: 2,
           },
           {
+            _id: "f4",
+            type: "dropdown",
             label: "Equipment Category",
-            fieldType: "dropdown",
-            isRequired: true,
-            options: CATEGORY_OPTIONS,
+            required: true,
+            options: ["Heavy Machinery", "Electronics", "Tools", "Vehicles"],
             order: 3,
           },
           {
+            _id: "f5",
+            type: "date",
             label: "Inspection Date",
-            fieldType: "date_picker",
-            isRequired: true,
+            required: true,
             order: 4,
           },
           {
+            _id: "f6",
+            type: "text_input",
             label: "Inspector Name",
-            fieldType: "text_input",
-            isRequired: true,
-            placeholder: "Enter inspector name",
+            required: true,
             order: 5,
           },
-        ],
-      },
-      {
-        sectionTitle: "Safety Checks",
-        sectionDescription: "Pre-inspection safety checklist",
-        order: 1,
-        fields: [
           {
+            _id: "f7",
+            type: "checkbox",
             label: "Pre-Inspection Checklist",
-            fieldType: "checkbox", // ← correct enum value
-            isRequired: true,
-            checkboxItems: formData.preInspectionChecks.map((c) => c.label),
-            order: 0,
+            required: true,
+            options: [
+              "Equipment is powered off",
+              "Safety gear is available",
+              "Area is clear of hazards",
+              "Documentation is ready",
+            ],
+            order: 6,
           },
           {
+            _id: "f8",
+            type: "rating",
             label: "Overall Equipment Condition",
-            fieldType: "rating", // ← correct enum value
-            isRequired: true,
-            ratingMax: 5,
-            ratingIcon: "star",
-            order: 1,
+            required: true,
+            validation: { min: 1, max: 5 },
+            order: 7,
           },
-        ],
-      },
-      {
-        sectionTitle: "Documentation",
-        sectionDescription: "Upload supporting documents",
-        order: 2,
-        fields: [
           {
+            _id: "f9",
+            type: "image_upload",
             label: "Upload Equipment Photos",
-            fieldType: "image_upload",
-            isRequired: false,
-            order: 0,
+            required: false,
+            order: 8,
           },
           {
+            _id: "f10",
+            type: "text_area",
             label: "Additional Notes",
-            fieldType: "text_area",
-            isRequired: false,
-            placeholder: "Enter any additional observations…",
-            order: 1,
+            required: false,
+            order: 9,
           },
           {
+            _id: "f11",
+            type: "signature",
             label: "Inspector Signature",
-            fieldType: "signature",
-            isRequired: true,
-            order: 2,
+            required: true,
+            order: 10,
           },
         ],
-      },
-    ],
-  });
+      };
+      setChecklist(demoChecklist);
+      setUiFields(demoChecklist.fields.map((f) => ({ ...f, id: f._id })));
+      return;
+    }
 
-  const handleSave = async () => {
-    if (!editMode) {
-      setEditMode(true);
-      return;
-    }
-    if (!formData.name.trim()) {
-      showSnack("Please enter a checklist name", "error");
-      return;
-    }
+    const fetchChecklist = async () => {
+      const result = await getChecklistById(checklistId);
+      if (result.success) {
+        const data = result.data?.data || result.data;
+        setChecklist(data);
+        const fields = (data.fields || [])
+          .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
+          .map((f) => convertAPIToUIField(f));
+        setUiFields(fields);
+      } else {
+        setFetchError(result.error || "Failed to load checklist");
+      }
+    };
+    fetchChecklist();
+  }, [checklistId, getChecklistById, convertAPIToUIField]);
+
+  // ── Field value change ──────────────────────────────────────────────────
+  const handleFieldChange = useCallback((key, value) => {
+    setFormValues((prev) => ({ ...prev, [key]: value }));
+  }, []);
+
+  // ── Clear form ──────────────────────────────────────────────────────────
+  const handleClear = () => {
+    setFormValues({});
+    setSubmitted(false);
+  };
+
+  // ── Submit — calls createChecklist from context (auth-aware, axios) ─────
+  //
+  // What we POST to /checklists:
+  //   { name, description, checklistType, isGlobal, category, tags, fields[] }
+  //
+  // The fields[] array carries the checklist schema (type, label, options…).
+  // User-entered formValues are NOT part of this POST — they are stored
+  // in a separate submissions endpoint. Here we are saving the checklist
+  // definition itself so it appears in /admin/checklists.
+  // ─────────────────────────────────────────────────────────────────────────
+  const handleSubmit = async () => {
+    if (!checklist) return;
 
     setSubmitting(true);
-    const result = await createChecklist(prepareChecklistData());
-    setSubmitting(false);
+    clearMessages();
 
-    if (result.success) {
-      setSuccessDialogOpen(true);
-      setEditMode(false);
-    } else {
-      showSnack(result.error || "Failed to create checklist", "error");
+    try {
+      const payload = buildChecklistPayload(checklist);
+      const result = await createChecklist(payload);
+
+      if (result.success) {
+        setSubmitted(true);
+        setSnackbar({
+          open: true,
+          message: "Checklist saved successfully!",
+          severity: "success",
+        });
+        // Redirect after snackbar is visible
+        setTimeout(() => navigate("/admin/checklists"), 1200);
+      } else {
+        throw new Error(result.error || "Failed to save checklist");
+      }
+    } catch (err) {
+      setSnackbar({
+        open: true,
+        message: err.message || "Submission failed. Please try again.",
+        severity: "error",
+      });
+    } finally {
+      setSubmitting(false);
     }
   };
 
-  const downloadFormAsPDF = async () => {
-    const pdfContent = document.createElement("div");
-    pdfContent.style.cssText =
-      "width:800px;padding:40px;font-family:'DM Sans','Helvetica Neue',sans-serif;background:#fff;color:#1a1d23;";
-
-    const checkStar = (c) => (c ? "✓ Yes" : "☐ No");
-
-    pdfContent.innerHTML = `
-      <div style="margin-bottom:30px;border-bottom:3px solid #1a4a5c;padding-bottom:20px;">
-        <h1 style="font-size:24px;font-weight:700;color:#1a4a5c;margin:0 0 8px 0;">${formData.name}</h1>
-        <p style="font-size:13px;color:#6b7280;margin:0;">${formData.description}</p>
-      </div>
-
-      <div style="margin-bottom:25px;">
-        <div style="background:#eef2f5;padding:10px 16px;border-radius:10px;margin-bottom:20px;">
-          <h2 style="font-size:16px;font-weight:700;color:#1a4a5c;margin:0;">Basic Information</h2>
-        </div>
-        <table style="width:100%;border-collapse:collapse;">
-          <tr><th style="text-align:left;padding:8px 12px;background:#f8fafc;font-weight:600;color:#1a4a5c;">Equipment Name *</th><td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;">${formData.equipmentName || "—"}</td></tr>
-          <tr><th style="text-align:left;padding:8px 12px;background:#f8fafc;font-weight:600;color:#1a4a5c;">Equipment ID *</th><td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;">${formData.equipmentId || "—"}</td></tr>
-          <tr><th style="text-align:left;padding:8px 12px;background:#f8fafc;font-weight:600;color:#1a4a5c;">Location *</th><td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;">${formData.location || "—"}</td></tr>
-          <tr><th style="text-align:left;padding:8px 12px;background:#f8fafc;font-weight:600;color:#1a4a5c;">Equipment Category *</th><td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;">${formData.equipmentCategory || "—"}</td></tr>
-          <tr><th style="text-align:left;padding:8px 12px;background:#f8fafc;font-weight:600;color:#1a4a5c;">Inspection Date *</th><td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;">${formData.inspectionDate}</td></tr>
-          <tr><th style="text-align:left;padding:8px 12px;background:#f8fafc;font-weight:600;color:#1a4a5c;">Inspector Name *</th><td style="padding:8px 12px;border-bottom:1px solid #e5e7eb;">${formData.inspectorName || "—"}</td></tr>
-        </table>
-      </div>
-
-      <div style="margin-bottom:25px;">
-        <div style="background:#eef2f5;padding:10px 16px;border-radius:10px;margin-bottom:20px;">
-          <h2 style="font-size:16px;font-weight:700;color:#1a4a5c;margin:0;">Safety Checks</h2>
-        </div>
-        <h3 style="font-size:14px;font-weight:600;color:#1a4a5c;margin:0 0 12px 0;">Pre-Inspection Checklist *</h3>
-        <table style="width:100%;border-collapse:collapse;border:1px solid #e5e7eb;border-radius:10px;">
-          ${formData.preInspectionChecks
-            .map(
-              (c, i) => `
-            <tr style="${i % 2 === 0 ? "background:#fafafa;" : ""}">
-              <td style="padding:8px 12px;border-bottom:${i === formData.preInspectionChecks.length - 1 ? "none" : "1px solid #e5e7eb"};">
-                <span style="font-size:14px;">${checkStar(c.checked)}</span>
-                <span style="font-size:13px;margin-left:8px;color:#374151;">${c.label}</span>
-              </td>
-            </tr>`,
-            )
-            .join("")}
-        </table>
-        <h3 style="font-size:14px;font-weight:600;color:#1a4a5c;margin:20px 0 12px 0;">Overall Equipment Condition *</h3>
-        <div style="padding:12px 16px;background:#fafafa;border-radius:10px;border:1px solid #e5e7eb;">
-          <span style="font-size:18px;color:#ffb74d;">${"★".repeat(formData.overallCondition)}${"☆".repeat(5 - formData.overallCondition)}</span>
-          <span style="font-size:13px;color:#6b7280;margin-left:10px;">Rating: ${formData.overallCondition}/5</span>
-        </div>
-      </div>
-
-      <div style="margin-bottom:25px;">
-        <div style="background:#eef2f5;padding:10px 16px;border-radius:10px;margin-bottom:20px;">
-          <h2 style="font-size:16px;font-weight:700;color:#1a4a5c;margin:0;">Documentation</h2>
-        </div>
-        <h3 style="font-size:14px;font-weight:600;color:#1a4a5c;margin:0 0 12px 0;">Additional Notes</h3>
-        <div style="padding:12px 16px;background:#fafafa;border-radius:10px;border:1px solid #e5e7eb;min-height:80px;">
-          <p style="font-size:13px;color:#374151;margin:0;white-space:pre-wrap;">${formData.additionalNotes || "[No notes added]"}</p>
-        </div>
-        <h3 style="font-size:14px;font-weight:600;color:#1a4a5c;margin:20px 0 12px 0;">Inspector Signature *</h3>
-        <div style="padding:12px 16px;background:#fafafa;border-radius:10px;border:1px solid #e5e7eb;min-height:60px;">
-          <p style="font-size:13px;color:${signatureData ? "#1a4a5c" : "#9ca3af"};margin:0;">
-            ${signatureData ? "✓ Signature captured" : "[Signature not captured yet]"}
-          </p>
-        </div>
-      </div>
-
-      <div style="margin-top:30px;padding-top:16px;border-top:1px solid #e5e7eb;text-align:center;">
-        <p style="font-size:10px;color:#9ca3af;margin:0;">
-          Form ID: CUSTOM-${Date.now()} | Generated: ${new Date().toLocaleString()}
-        </p>
-      </div>`;
-
-    document.body.appendChild(pdfContent);
+  // ── Download as PDF ─────────────────────────────────────────────────────
+  const handleDownloadPDF = async () => {
+    if (!checklist || !formRef.current) return;
+    setPdfDownloading(true);
+    setSnackbar({
+      open: true,
+      message: "Generating PDF, please wait…",
+      severity: "info",
+    });
     try {
-      const canvas = await html2canvas(pdfContent, {
+      const [{ default: jsPDF }, { default: html2canvas }] = await Promise.all([
+        import("jspdf"),
+        import("html2canvas"),
+      ]);
+
+      const element = formRef.current;
+      const canvas = await html2canvas(element, {
         scale: 2,
+        useCORS: true,
         backgroundColor: "#ffffff",
         logging: false,
-        useCORS: true,
+        windowWidth: element.scrollWidth,
+        windowHeight: element.scrollHeight,
       });
+
       const pdf = new jsPDF({
         orientation: "portrait",
         unit: "mm",
         format: "a4",
       });
-      const imgWidth = 210;
-      const imgData = canvas.toDataURL("image/png");
-      const imgHeight = (canvas.height * imgWidth) / canvas.width;
-      let heightLeft = imgHeight,
-        position = 0;
-      pdf.addImage(imgData, "PNG", 0, position, imgWidth, imgHeight);
-      heightLeft -= pdf.internal.pageSize.height;
-      while (heightLeft > 0) {
-        position = heightLeft - imgHeight;
-        pdf.addPage();
-        pdf.addImage(imgData, "PNG", 0, position, imgWidth, imgHeight);
-        heightLeft -= pdf.internal.pageSize.height;
+      const pageW = pdf.internal.pageSize.getWidth();
+      const pageH = pdf.internal.pageSize.getHeight();
+      const margin = 10;
+      const usableW = pageW - margin * 2;
+      const imgH = (canvas.height * usableW) / canvas.width;
+
+      // Header
+      pdf.setFillColor(20, 76, 92);
+      pdf.rect(0, 0, pageW, 14, "F");
+      pdf.setTextColor(255, 255, 255);
+      pdf.setFontSize(10);
+      pdf.setFont("helvetica", "bold");
+      pdf.text(checklist.name || "Checklist Form", margin, 9.5);
+      pdf.setFont("helvetica", "normal");
+      pdf.setFontSize(7);
+      pdf.text(
+        `Generated: ${new Date().toLocaleString()}`,
+        pageW - margin,
+        9.5,
+        { align: "right" },
+      );
+
+      const startY = 18;
+      const availableH = pageH - startY - margin;
+      let yOffset = 0,
+        page = 1;
+
+      while (yOffset < imgH) {
+        if (page > 1) {
+          pdf.addPage();
+          pdf.setFillColor(20, 76, 92);
+          pdf.rect(0, 0, pageW, 14, "F");
+          pdf.setTextColor(255, 255, 255);
+          pdf.setFontSize(10);
+          pdf.setFont("helvetica", "bold");
+          pdf.text(checklist.name || "Checklist Form", margin, 9.5);
+          pdf.setFont("helvetica", "normal");
+          pdf.setFontSize(7);
+          pdf.text(`Page ${page}`, pageW - margin, 9.5, { align: "right" });
+        }
+
+        const sliceH = Math.min(availableH, imgH - yOffset);
+        const srcY = (yOffset / imgH) * canvas.height;
+        const srcH = (sliceH / imgH) * canvas.height;
+
+        const sliceCanvas = document.createElement("canvas");
+        sliceCanvas.width = canvas.width;
+        sliceCanvas.height = srcH;
+        sliceCanvas
+          .getContext("2d")
+          .drawImage(
+            canvas,
+            0,
+            srcY,
+            canvas.width,
+            srcH,
+            0,
+            0,
+            canvas.width,
+            srcH,
+          );
+
+        pdf.addImage(
+          sliceCanvas.toDataURL("image/jpeg", 0.92),
+          "JPEG",
+          margin,
+          startY,
+          usableW,
+          sliceH,
+        );
+        yOffset += sliceH;
+        page++;
       }
-      pdf.save(`${formData.name.replace(/\s/g, "_")}_Inspection_Report.pdf`);
+
+      // Footer
+      pdf.setFillColor(240, 244, 246);
+      pdf.rect(0, pageH - 8, pageW, 8, "F");
+      pdf.setTextColor(107, 114, 128);
+      pdf.setFontSize(7);
+      pdf.setFont("helvetica", "normal");
+      const formId =
+        checklist._id !== "demo-001" ? checklist._id : "FORM-2024-001";
+      pdf.text(
+        `Form ID: ${formId} | v${checklist.version || 1}.0 | ${checklist.category || "general"}`,
+        margin,
+        pageH - 2.5,
+      );
+      pdf.text(`Total pages: ${page - 1}`, pageW - margin, pageH - 2.5, {
+        align: "right",
+      });
+
+      pdf.save(
+        `${(checklist.name || "checklist").replace(/\s+/g, "_")}_${new Date().toISOString().slice(0, 10)}.pdf`,
+      );
+      setSnackbar({
+        open: true,
+        message: "PDF downloaded successfully!",
+        severity: "success",
+      });
     } catch (err) {
-      console.error("PDF error:", err);
-      showSnack("Failed to generate PDF", "error");
+      console.error("PDF generation error:", err);
+      setSnackbar({
+        open: true,
+        message: "Failed to generate PDF. Please try again.",
+        severity: "error",
+      });
     } finally {
-      document.body.removeChild(pdfContent);
+      setPdfDownloading(false);
     }
   };
 
-  useEffect(() => {
-    if (error) showSnack(error, "error");
-    if (success && !successDialogOpen) showSnack(success, "success");
-  }, [error, success, successDialogOpen]);
+  // ── Derived values ──────────────────────────────────────────────────────
+  const sections = groupFieldsIntoSections(checklist?.fields || []);
+  const createdAt = checklist?.createdAt
+    ? new Date(checklist.createdAt).toLocaleDateString("en-US", {
+        month: "short",
+        day: "numeric",
+        year: "numeric",
+      })
+    : "—";
+  const createdByName =
+    typeof checklist?.createdBy === "object"
+      ? checklist?.createdBy?.name || checklist?.createdBy?.email || "Admin"
+      : "Admin";
 
-  const clearForm = () => {
-    if (!editMode) return;
-    setFormData((p) => ({
-      ...p,
-      equipmentName: "",
-      equipmentId: "",
-      location: "",
-      equipmentCategory: "",
-      inspectorName: "",
-      preInspectionChecks: p.preInspectionChecks.map((c) => ({
-        ...c,
-        checked: false,
-      })),
-      overallCondition: 3,
-      additionalNotes: "",
-      photos: [],
-    }));
-    setSignatureData(null);
-    showSnack("Form cleared!");
-  };
-
+  // ── Render ──────────────────────────────────────────────────────────────
   return (
     <ThemeProvider theme={theme}>
-      <CssBaseline />
-      <style>{`@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&display=swap');`}</style>
-
-      <Box sx={{ minHeight: "100vh", p: 3 }}>
-        {/* Top nav */}
-        <Box
+      <Box sx={{ minHeight: "100vh" }}>
+        {/* ── AppBar ── */}
+        <AppBar
+          position="sticky"
+          elevation={0}
           sx={{
-            bgcolor: "#fff",
+            background: "#fff",
             borderBottom: "1px solid #e5e7eb",
-            px: 3,
-            py: 2,
-            borderRadius: "10px",
-            mb: 2,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            flexWrap: "wrap",
-            gap: 2,
+            width: "1175px",
+            borderRadius: 2,
+            marginLeft: "30px",
           }}
         >
-          <Box display="flex" alignItems="center" gap={1.5}>
-            <IconButton
-              size="small"
-              onClick={() => navigate("/admin/checklists")}
-              sx={{
-                color: "#374151",
-                border: "1px solid #e5e7eb",
-                borderRadius: "8px",
-                p: 0.6,
-              }}
-            >
-              <ArrowBackIcon sx={{ fontSize: 18 }} />
-            </IconButton>
-            <Box>
-              <Typography
-                sx={{ fontSize: 18, fontWeight: 700, color: "#1a1d23" }}
+          <Toolbar
+            sx={{
+              justifyContent: "space-between",
+              minHeight: "60px !important",
+              px: 3.5,
+            }}
+          >
+            <Stack direction="row" alignItems="center" spacing={1.25}>
+              <IconButton
+                size="small"
+                sx={{
+                  border: "1px solid #e5e7eb",
+                  borderRadius: "8px",
+                  width: 32,
+                  height: 32,
+                }}
+                onClick={() => navigate("/admin/checklists")}
               >
-                Custom Checklist Builder
-              </Typography>
-              <Typography sx={{ fontSize: 12, color: "#6b7280" }}>
-                Create and manage custom inspection checklists
-              </Typography>
-            </Box>
-          </Box>
-          <Box display="flex" gap={1.2}>
-            <Button
-              variant="outlined"
-              startIcon={<DownloadIcon sx={{ fontSize: 16 }} />}
-              onClick={downloadFormAsPDF}
-              sx={{
-                borderColor: "#cbd5e1",
-                color: "#374151",
-                bgcolor: "#f8fafc",
-              }}
-            >
-              Download PDF
-            </Button>
-            <Button
-              variant="contained"
-              startIcon={
-                editMode ? (
-                  <SaveIcon sx={{ fontSize: 16 }} />
-                ) : (
-                  <EditOutlinedIcon sx={{ fontSize: 16 }} />
-                )
-              }
-              onClick={handleSave}
-              disabled={loading || submitting}
-              sx={{ bgcolor: editMode ? "#1a4a5c" : "#374151" }}
-            >
-              {submitting ? (
-                <CircularProgress size={20} color="inherit" />
-              ) : editMode ? (
-                "Save Checklist"
-              ) : (
-                "Edit Form"
-              )}
-            </Button>
-          </Box>
-        </Box>
-
-        <Box
-          sx={{
-            display: "flex",
-            gap: 2.5,
-            alignItems: "flex-start",
-            flexDirection: { xs: "column", md: "row" },
-          }}
-        >
-          {/* Form */}
-          <Box sx={{ flex: 1, minWidth: 0, width: { xs: "100%", md: "auto" } }}>
-            <Paper
-              elevation={0}
-              sx={{
-                border: "1px solid #e5e7eb",
-                borderRadius: "14px",
-                p: { xs: 2, sm: 3, md: 4 },
-              }}
-            >
-              {editMode ? (
-                <TextField
-                  fullWidth
-                  value={formData.name}
-                  variant="standard"
-                  onChange={(e) => handleInputChange("name", e.target.value)}
-                  sx={{
-                    mb: 1,
-                    "& .MuiInputBase-input": { fontSize: 22, fontWeight: 800 },
-                  }}
-                />
-              ) : (
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                  <path
+                    d="M10 3L5 8l5 5"
+                    stroke="#374151"
+                    strokeWidth="1.6"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                </svg>
+              </IconButton>
+              <Box>
                 <Typography
                   sx={{
-                    fontSize: 22,
-                    fontWeight: 800,
-                    color: "#1a1d23",
-                    mb: 0.8,
+                    fontSize: 16,
+                    fontWeight: 700,
+                    color: "#111827",
+                    lineHeight: 1.3,
                   }}
                 >
-                  {formData.name}
+                  {loading && !checklist
+                    ? "Loading..."
+                    : checklist?.name || "Custom Checklist Builder"}
                 </Typography>
-              )}
-              {editMode ? (
-                <TextField
-                  fullWidth
-                  multiline
-                  rows={2}
-                  value={formData.description}
-                  variant="standard"
-                  onChange={(e) =>
-                    handleInputChange("description", e.target.value)
-                  }
-                  sx={{ mb: 1 }}
-                />
-              ) : (
-                <Typography sx={{ fontSize: 13, color: "#6b7280", mb: 1 }}>
-                  {formData.description}
+                <Typography sx={{ fontSize: 11, color: "#9ca3af" }}>
+                  {checklist?.description ||
+                    "Create and manage inspection checklists and review customer requests"}
                 </Typography>
-              )}
-              <Divider sx={{ mb: 3 }} />
+              </Box>
+            </Stack>
 
-              {/* Basic Information */}
-              <SectionHeader title="Basic Information" />
-              <Grid container spacing={2.5} mb={3}>
-                <Grid item xs={12} sm={6}>
-                  <FieldLabel label="Equipment Name" required />
-                  <TextField
-                    fullWidth
-                    size="small"
-                    placeholder="Enter equipment name"
-                    value={formData.equipmentName}
-                    onChange={(e) =>
-                      handleInputChange("equipmentName", e.target.value)
-                    }
-                    InputProps={{ readOnly: !editMode }}
-                  />
-                </Grid>
-                <Grid item xs={12} sm={6}>
-                  <FieldLabel label="Equipment ID" required />
-                  <TextField
-                    fullWidth
-                    size="small"
-                    placeholder="Enter equipment ID"
-                    value={formData.equipmentId}
-                    onChange={(e) =>
-                      handleInputChange("equipmentId", e.target.value)
-                    }
-                    InputProps={{ readOnly: !editMode }}
-                  />
-                </Grid>
-                <Grid item xs={12} sm={6}>
-                  <FieldLabel label="Location" required />
-                  <TextField
-                    fullWidth
-                    select
-                    size="small"
-                    value={formData.location}
-                    onChange={(e) =>
-                      handleInputChange("location", e.target.value)
-                    }
-                    disabled={!editMode}
-                  >
-                    <MenuItem value="">Select location</MenuItem>
-                    {LOCATION_OPTIONS.map((o) => (
-                      <MenuItem key={o} value={o}>
-                        {o}
-                      </MenuItem>
-                    ))}
-                  </TextField>
-                </Grid>
-                <Grid item xs={12} sm={6}>
-                  <FieldLabel label="Equipment Category" required />
-                  <TextField
-                    fullWidth
-                    select
-                    size="small"
-                    value={formData.equipmentCategory}
-                    onChange={(e) =>
-                      handleInputChange("equipmentCategory", e.target.value)
-                    }
-                    disabled={!editMode}
-                  >
-                    <MenuItem value="">Select category</MenuItem>
-                    {CATEGORY_OPTIONS.map((o) => (
-                      <MenuItem key={o} value={o}>
-                        {o}
-                      </MenuItem>
-                    ))}
-                  </TextField>
-                </Grid>
-                <Grid item xs={12} sm={6}>
-                  <FieldLabel label="Inspection Date" required />
-                  <TextField
-                    fullWidth
-                    type={editMode ? "date" : "text"}
-                    size="small"
-                    value={formData.inspectionDate}
-                    onChange={(e) =>
-                      handleInputChange("inspectionDate", e.target.value)
-                    }
-                    InputProps={{ readOnly: !editMode }}
-                  />
-                </Grid>
-                <Grid item xs={12} sm={6}>
-                  <FieldLabel label="Inspector Name" required />
-                  <TextField
-                    fullWidth
-                    size="small"
-                    placeholder="Enter inspector name"
-                    value={formData.inspectorName}
-                    onChange={(e) =>
-                      handleInputChange("inspectorName", e.target.value)
-                    }
-                    InputProps={{ readOnly: !editMode }}
-                  />
-                </Grid>
-              </Grid>
-
-              {/* Safety Checks */}
-              <SectionHeader title="Safety Checks" />
-              <FieldLabel label="Pre-Inspection Checklist" required />
-              <Box
-                sx={{
-                  border: "1.5px solid #e5e7eb",
-                  borderRadius: "10px",
-                  px: 2.5,
-                  py: 1.5,
-                  mb: 3,
-                }}
-              >
-                {formData.preInspectionChecks.map((item, i) => (
-                  <FormControlLabel
-                    key={i}
-                    sx={{
-                      display: "flex",
-                      alignItems: "center",
-                      mb: 0.5,
-                      ml: 0,
-                    }}
-                    control={
-                      <Checkbox
-                        checked={item.checked}
-                        onChange={() => toggleCheck(i)}
-                        disabled={!editMode}
-                        size="small"
-                        sx={{
-                          color: "#1a4a5c",
-                          "&.Mui-checked": { color: "#1a4a5c" },
-                        }}
+            <Stack direction="row" spacing={1.25}>
+              <Button
+                variant="outlined"
+                color="primary"
+                disabled={!checklist || loading || pdfDownloading}
+                onClick={handleDownloadPDF}
+                startIcon={
+                  pdfDownloading ? (
+                    <CircularProgress size={13} color="inherit" />
+                  ) : (
+                    <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                      <path
+                        d="M7 1v8M4 6l3 3 3-3M2 11h10"
+                        stroke="#144c5c"
+                        strokeWidth="1.5"
+                        strokeLinecap="round"
                       />
-                    }
-                    label={
-                      <Typography sx={{ fontSize: 13.5, color: "#374151" }}>
-                        {item.label}
-                      </Typography>
-                    }
-                  />
-                ))}
-              </Box>
-
-              <FieldLabel label="Overall Equipment Condition" required />
-              <Box
-                sx={{
-                  border: "1.5px solid #e5e7eb",
-                  borderRadius: "10px",
-                  px: 2.5,
-                  py: 1.8,
-                  mb: 3,
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 1.5,
-                }}
-              >
-                <Rating
-                  value={formData.overallCondition}
-                  size="large"
-                  readOnly={!editMode}
-                  onChange={(_, v) => handleInputChange("overallCondition", v)}
-                  sx={{ "& .MuiRating-iconFilled": { color: "#ffb74d" } }}
-                />
-                <Typography sx={{ fontSize: 13, color: "#9ca3af" }}>
-                  {formData.overallCondition}/5
-                </Typography>
-              </Box>
-
-              {/* Documentation */}
-              <SectionHeader title="Documentation" />
-              <FieldLabel label="Upload Equipment Photos" />
-              <Box
-                sx={{
-                  border: "2px dashed #d1d5db",
-                  borderRadius: "10px",
-                  bgcolor: "#fafafa",
-                  p: "28px 20px",
-                  display: "flex",
-                  flexDirection: "column",
-                  alignItems: "center",
-                  gap: 1,
-                  mb: 3,
-                  cursor: editMode ? "pointer" : "default",
-                }}
-              >
-                <ImageOutlinedIcon sx={{ fontSize: 36, color: "#d1d5db" }} />
-                <Typography sx={{ fontSize: 14, color: "#374151" }}>
-                  {editMode
-                    ? "Drag and drop images here or click to browse"
-                    : formData.photos?.length
-                      ? `${formData.photos.length} photo(s) uploaded`
-                      : "Image upload area"}
-                </Typography>
-                <Typography sx={{ fontSize: 12.5, color: "#2a7a9b" }}>
-                  Supported: JPG, PNG, PDF (Max 10MB)
-                </Typography>
-              </Box>
-
-              <FieldLabel label="Additional Notes" />
-              <TextField
-                fullWidth
-                multiline
-                rows={3}
-                placeholder="Enter any additional observations…"
-                value={formData.additionalNotes}
-                onChange={(e) =>
-                  handleInputChange("additionalNotes", e.target.value)
+                    </svg>
+                  )
                 }
-                InputProps={{ readOnly: !editMode }}
-                sx={{ mb: 3 }}
-              />
-
-              <FieldLabel label="Inspector Signature" required />
-              <SignaturePad
-                readOnly={!editMode}
-                onSignatureChange={(_, data) => setSignatureData(data)}
-              />
-
-              <Divider sx={{ mt: 4, mb: 2.5 }} />
-              <Box
-                display="flex"
-                alignItems="center"
-                justifyContent="space-between"
-                flexDirection={{ xs: "column", sm: "row" }}
-                gap={2}
+                sx={{ fontSize: 13 }}
               >
-                <Typography sx={{ fontSize: 12.5, color: "#9ca3af" }}>
-                  {editMode
-                    ? "Edit mode: Make changes to the form"
-                    : "View mode: Click Edit Form to make changes"}
-                </Typography>
-                <Box display="flex" gap={1.2}>
+                {pdfDownloading ? "Generating PDF…" : "Download Custom Form"}
+              </Button>
+            </Stack>
+          </Toolbar>
+        </AppBar>
+
+        {/* ── Body ── */}
+        <Box sx={{ width: "1400px", p: { xs: 2, md: 3.5 } }}>
+          <Grid container spacing={2.5} alignItems="flex-start">
+            {/* ── Form Column ── */}
+            <Grid item xs={12} md={9} sx={{ width: "800px" }}>
+              {/* Error state */}
+              {fetchError && (
+                <Paper sx={{ borderRadius: "14px", p: 4, textAlign: "center" }}>
+                  <Typography sx={{ color: "#dc2626", fontSize: 15, mb: 1 }}>
+                    {fetchError}
+                  </Typography>
                   <Button
                     variant="outlined"
-                    onClick={clearForm}
-                    disabled={!editMode}
+                    color="primary"
+                    onClick={() => window.location.reload()}
                   >
-                    Clear Form
+                    Retry
                   </Button>
-                  <Button
-                    variant="contained"
-                    sx={{ bgcolor: "#1a4a5c" }}
-                    onClick={() => {
-                      if (!editMode)
-                        showSnack("Please enter edit mode first", "info");
-                      else showSnack("Inspection submitted!");
-                    }}
-                  >
-                    Submit Inspection
-                  </Button>
-                </Box>
-              </Box>
-            </Paper>
-          </Box>
+                </Paper>
+              )}
 
-          {/* Details panel */}
-          <Box sx={{ width: { xs: "100%", md: 280 }, flexShrink: 0 }}>
-            <Paper
-              elevation={0}
-              sx={{
-                border: "1px solid #e5e7eb",
-                borderRadius: "14px",
-                p: "24px 22px",
-              }}
-            >
-              <Typography
-                sx={{ fontSize: 16, fontWeight: 700, color: "#1a1d23", mb: 3 }}
-              >
-                Form Details
-              </Typography>
+              {/* Loading skeleton */}
+              {loading && !checklist && !fetchError && <FormSkeleton />}
 
-              {[
-                {
-                  icon: (
-                    <FolderOutlinedIcon
-                      sx={{ fontSize: 17, color: "#6b7280" }}
-                    />
-                  ),
-                  label: "Form Name",
-                  value: formData.name,
-                },
-                {
-                  icon: (
-                    <PersonOutlineIcon
-                      sx={{ fontSize: 17, color: "#6b7280" }}
-                    />
-                  ),
-                  label: "Created By",
-                  value: user?.firstName
-                    ? `${user.firstName} ${user.lastName || ""}`.trim()
-                    : user?.email || "System Admin",
-                },
-                {
-                  icon: (
-                    <CalendarTodayOutlinedIcon
-                      sx={{ fontSize: 17, color: "#6b7280" }}
-                    />
-                  ),
-                  label: "Created On",
-                  value: new Date().toLocaleDateString(),
-                },
-              ].map(({ icon, label, value }) => (
-                <Box
-                  key={label}
-                  display="flex"
-                  alignItems="flex-start"
-                  gap={1.5}
-                  mb={2.5}
+              {/* Form */}
+              {checklist && !fetchError && (
+                <Paper
+                  ref={formRef}
+                  sx={{ borderRadius: "14px", p: { xs: 3, md: 4.5 } }}
                 >
+                  {/* Form Title */}
+                  <Box
+                    sx={{ mb: 3.5, pb: 2.5, borderBottom: "1px solid #f0f1f2" }}
+                  >
+                    <Stack
+                      direction="row"
+                      alignItems="center"
+                      spacing={1.5}
+                      mb={0.75}
+                    >
+                      <Typography
+                        sx={{
+                          fontSize: 20,
+                          fontWeight: 1000,
+                          color: "#1a3a47",
+                        }}
+                      >
+                        {checklist.name}
+                      </Typography>
+                      {checklist.status && (
+                        <Chip
+                          label={checklist.status}
+                          size="small"
+                          sx={{
+                            background:
+                              checklist.status === "published"
+                                ? "#dcfce7"
+                                : "#fef3c7",
+                            color:
+                              checklist.status === "published"
+                                ? "#166534"
+                                : "#92400e",
+                            fontWeight: 600,
+                            textTransform: "capitalize",
+                          }}
+                        />
+                      )}
+                    </Stack>
+                    <Typography sx={{ fontSize: 13, color: "#6b7280" }}>
+                      {checklist.description || "Complete all fields below."}
+                    </Typography>
+                  </Box>
+
+                  {/* ── Dynamic Sections ── */}
+                  {sections.map((section, si) => (
+                    <Box key={si} sx={{ mb: 3.5 }}>
+                      <SectionHeader title={section.title} />
+                      {(() => {
+                        const inlineTypes = ["text_input", "dropdown", "date"];
+                        const rows = [];
+                        let i = 0;
+                        const sFields = section.fields;
+                        while (i < sFields.length) {
+                          const curr = sFields[i];
+                          const next = sFields[i + 1];
+                          if (
+                            inlineTypes.includes(curr.type) &&
+                            next &&
+                            inlineTypes.includes(next.type)
+                          ) {
+                            rows.push({ type: "pair", fields: [curr, next] });
+                            i += 2;
+                          } else {
+                            rows.push({ type: "single", field: curr });
+                            i += 1;
+                          }
+                        }
+                        return rows.map((row, ri) => {
+                          if (row.type === "pair") {
+                            return (
+                              <Grid
+                                container
+                                spacing={2.5}
+                                sx={{ mb: 2.5 }}
+                                key={ri}
+                              >
+                                {row.fields.map((field) => {
+                                  const key = field._id || field.label;
+                                  return (
+                                    <Grid
+                                      item
+                                      xs={12}
+                                      sm={6}
+                                      key={key}
+                                      sx={{ width: "300px" }}
+                                    >
+                                      <FieldLabel
+                                        label={field.label}
+                                        required={field.required}
+                                      />
+                                      <DynamicField
+                                        field={field}
+                                        value={formValues[key]}
+                                        onChange={handleFieldChange}
+                                      />
+                                    </Grid>
+                                  );
+                                })}
+                              </Grid>
+                            );
+                          }
+                          const field = row.field;
+                          const key = field._id || field.label;
+                          return (
+                            <Box sx={{ mb: 2.5 }} key={key}>
+                              <FieldLabel
+                                label={field.label}
+                                required={field.required}
+                              />
+                              <DynamicField
+                                field={field}
+                                value={formValues[key]}
+                                onChange={handleFieldChange}
+                              />
+                            </Box>
+                          );
+                        });
+                      })()}
+                    </Box>
+                  ))}
+
+                  {/* ── Footer ── */}
+                  <Divider sx={{ mb: 2.5 }} />
                   <Box
                     sx={{
-                      width: 34,
-                      height: 34,
-                      borderRadius: "8px",
-                      bgcolor: "#f1f5f9",
                       display: "flex",
+                      justifyContent: "space-between",
                       alignItems: "center",
-                      justifyContent: "center",
+                      flexWrap: "wrap",
+                      gap: 1.5,
                     }}
                   >
-                    {icon}
-                  </Box>
-                  <Box>
-                    <Typography
-                      sx={{ fontSize: 11.5, color: "#9ca3af", mb: 0.2 }}
-                    >
-                      {label}
+                    <Typography sx={{ fontSize: 12, color: "#9ca3af" }}>
+                      {checklist._id !== "demo-001"
+                        ? `Form ID: ${checklist._id}`
+                        : "Form ID: FORM-2024-001"}{" "}
+                      | Last Updated: {createdAt}
                     </Typography>
-                    <Typography
-                      sx={{ fontSize: 13.5, fontWeight: 600, color: "#1a1d23" }}
-                    >
-                      {value}
-                    </Typography>
+                    <Stack direction="row" spacing={1.25}>
+                      <Button
+                        variant="outlined"
+                        sx={{ fontSize: 13 }}
+                        onClick={handleClear}
+                        disabled={submitting}
+                      >
+                        Clear Checklist
+                      </Button>
+                      <Button
+                        variant="contained"
+                        color="primary"
+                        onClick={handleSubmit}
+                        disabled={submitting}
+                        sx={{ fontSize: 13, minWidth: 140 }}
+                        startIcon={
+                          submitting ? (
+                            <CircularProgress size={14} color="inherit" />
+                          ) : null
+                        }
+                      >
+                        {submitting
+                          ? "Submitting..."
+                          : submitted
+                            ? "✓ Submitted!"
+                            : "Submit Inspection"}
+                      </Button>
+                    </Stack>
                   </Box>
-                </Box>
-              ))}
+                </Paper>
+              )}
+            </Grid>
 
-              <Box display="flex" alignItems="flex-start" gap={1.5} mb={2.5}>
+            {/* ── Sidebar ── */}
+            <Grid item xs={12} md={3} sx={{ width:"355px"}}>
+              <Paper
+                sx={{
+                  borderRadius: "14px",
+                  p: 2.5,
+                  position: { md: "sticky" },
+                  top: { md: 76 },
+                }}
+              >
+                <Typography
+                  sx={{
+                    fontSize: 16,
+                    fontWeight: 700,
+                    color: "#1a3a47",
+                    mb: 0.5,
+                  }}
+                >
+                  Form Details
+                </Typography>
+
+                {loading && !checklist ? (
+                  <>
+                    {[1, 2, 3, 4, 5].map((i) => (
+                      <Skeleton key={i} height={48} sx={{ mb: 0.5 }} />
+                    ))}
+                  </>
+                ) : checklist ? (
+                  <>
+                    <DetailRow
+                      iconEl={<IconForm />}
+                      label="Form Name"
+                      value={checklist.name}
+                    />
+                    <DetailRow
+                      iconEl={<IconUser />}
+                      label="Created By"
+                      value={createdByName}
+                    />
+                    <DetailRow
+                      iconEl={<IconCal />}
+                      label="Created On"
+                      value={createdAt}
+                    />
+                    <DetailRow
+                      iconEl={<IconForm />}
+                      label="Category"
+                      value={checklist.category || "Custom Form"}
+                    />
+                    <DetailRow
+                      iconEl={<IconHash />}
+                      label="Total Fields"
+                      value={String(checklist.fields?.length || 0)}
+                    />
+                    <DetailRow
+                      iconEl={<IconVer />}
+                      label="Form Version"
+                      value={`v${checklist.version || 1}.0`}
+                    />
+                    {checklist.tags?.length > 0 && (
+                      <DetailRow
+                        iconEl={<IconTag />}
+                        label="Tags"
+                        value={checklist.tags}
+                        isTag
+                      />
+                    )}
+                  </>
+                ) : null}
+
+                {/* Completion progress */}
+                {checklist &&
+                  (() => {
+                    const required = (checklist.fields || []).filter(
+                      (f) => f.required,
+                    );
+                    const filled = required.filter((f) => {
+                      const key = f._id || f.label;
+                      const val = formValues[key];
+                      return (
+                        val !== undefined &&
+                        val !== null &&
+                        val !== "" &&
+                        !(Array.isArray(val) && val.length === 0)
+                      );
+                    });
+                    const pct =
+                      required.length > 0
+                        ? Math.round((filled.length / required.length) * 100)
+                        : 100;
+                    return (
+                      <Box
+                        sx={{
+                          mt: 2,
+                          background: "#f0f4f6",
+                          borderRadius: "10px",
+                          px: 2,
+                          py: 1.5,
+                        }}
+                      >
+                        <Stack
+                          direction="row"
+                          justifyContent="space-between"
+                          mb={0.75}
+                        >
+                          <Typography
+                            sx={{
+                              fontSize: 12,
+                              fontWeight: 600,
+                              color: "#1a3a47",
+                            }}
+                          >
+                            Required Fields
+                          </Typography>
+                          <Typography
+                            sx={{
+                              fontSize: 12,
+                              color: "#144c5c",
+                              fontWeight: 700,
+                            }}
+                          >
+                            {filled.length}/{required.length}
+                          </Typography>
+                        </Stack>
+                        <Box
+                          sx={{
+                            height: 6,
+                            borderRadius: 3,
+                            background: "#dde3e8",
+                            overflow: "hidden",
+                          }}
+                        >
+                          <Box
+                            sx={{
+                              height: "100%",
+                              width: `${pct}%`,
+                              background: pct === 100 ? "#16a34a" : "#144c5c",
+                              borderRadius: 3,
+                              transition: "width .3s ease",
+                            }}
+                          />
+                        </Box>
+                        <Typography
+                          sx={{ fontSize: 11, color: "#9ca3af", mt: 0.5 }}
+                        >
+                          {pct === 100
+                            ? "All required fields completed ✓"
+                            : `${100 - pct}% remaining`}
+                        </Typography>
+                      </Box>
+                    );
+                  })()}
+
+                {/* Ready to Assign */}
                 <Box
                   sx={{
-                    width: 34,
-                    height: 34,
-                    borderRadius: "8px",
-                    bgcolor: "#f1f5f9",
+                    mt: 2,
+                    background: "#f0f4f6",
+                    borderRadius: "10px",
+                    px: 2,
+                    py: 1.5,
                     display: "flex",
                     alignItems: "center",
                     justifyContent: "center",
+                    gap: 1,
+                    cursor: "pointer",
+                    "&:hover": { background: alpha("#144c5c", 0.08) },
+                    transition: "background .12s",
                   }}
                 >
-                  <TagIcon sx={{ fontSize: 17, color: "#6b7280" }} />
-                </Box>
-                <Box>
+                  <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                    <path
+                      d="M2 7.5l3 3L12 3"
+                      stroke="#144c5c"
+                      strokeWidth="1.8"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                  </svg>
                   <Typography
-                    sx={{ fontSize: 11.5, color: "#9ca3af", mb: 0.8 }}
+                    sx={{ fontSize: 13, fontWeight: 500, color: "#144c5c" }}
                   >
-                    Tags
+                    Ready to Assign
                   </Typography>
-                  <Box display="flex" flexWrap="wrap" gap={0.7}>
-                    {["Safety", "Equipment", "Inspection", "Custom"].map(
-                      (tag) => (
-                        <Chip
-                          key={tag}
-                          label={tag}
-                          size="small"
-                          sx={{
-                            bgcolor: "#eef2f5",
-                            color: "#374151",
-                            fontSize: 11.5,
-                            fontWeight: 500,
-                            height: 24,
-                            borderRadius: "6px",
-                          }}
-                        />
-                      ),
-                    )}
-                  </Box>
                 </Box>
-              </Box>
-
-              <Box
-                sx={{
-                  bgcolor: editMode ? "#fff3e0" : "#e8f5e9",
-                  borderRadius: "10px",
-                  py: 1.5,
-                  px: 2,
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  gap: 1,
-                }}
-              >
-                <CheckCircleIcon
-                  sx={{ fontSize: 16, color: editMode ? "#ed6c02" : "#4caf50" }}
-                />
-                <Typography
-                  sx={{
-                    fontSize: 13,
-                    color: editMode ? "#ed6c02" : "#4caf50",
-                    fontWeight: 500,
-                  }}
-                >
-                  {editMode ? "Edit Mode Active" : "Ready to Submit"}
-                </Typography>
-              </Box>
-            </Paper>
-          </Box>
+              </Paper>
+            </Grid>
+          </Grid>
         </Box>
       </Box>
 
-      <SuccessDialog
-        open={successDialogOpen}
-        onClose={() => setSuccessDialogOpen(false)}
-        message="Custom checklist has been created successfully!"
-      />
-
+      {/* ── Snackbar ── */}
       <Snackbar
         open={snackbar.open}
-        autoHideDuration={6000}
-        onClose={() => {
-          setSnackbar((s) => ({ ...s, open: false }));
-          clearMessages();
-        }}
-        anchorOrigin={{ vertical: "top", horizontal: "center" }}
+        autoHideDuration={4000}
+        onClose={() => setSnackbar((p) => ({ ...p, open: false }))}
+        anchorOrigin={{ vertical: "bottom", horizontal: "center" }}
       >
         <Alert
           severity={snackbar.severity}
-          onClose={() => {
-            setSnackbar((s) => ({ ...s, open: false }));
-            clearMessages();
-          }}
+          onClose={() => setSnackbar((p) => ({ ...p, open: false }))}
+          sx={{ borderRadius: "10px", fontSize: 13 }}
         >
           {snackbar.message}
         </Alert>
